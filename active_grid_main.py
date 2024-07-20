@@ -1,35 +1,34 @@
 # Initial Turbulence Intensity Model for Active Grid
 # Author: Lance Pharand, 2024
-# NOTEs: Download the following packages below if not installed already
+# NOTEs:
+# Download the following packages below if not installed already
+# !! IMPORTANT Set the Turbulence Parameters Class variables in the "Initializations" section !!
 
 import scipy.io
-import scipy.signal as signal
+from scipy import integrate
 import pandas as pd
 import numpy as np
 import os
-import math
 import matplotlib.pyplot as plt
 import seaborn as sns
+import time as time_clock
+from Turbulence_Parameters_class import Turbulence_Parameters
 
 ###################################################################
-## Initialization
+## Initializations
 ###################################################################
-
-dataDir = "/Users/lancepharand/Desktop/URA S24/Experiment_Scripts/Turb_Int_Out_Model/Active_Grid_Data/"
-u_data_read = []
-v_data_read = []
-names_files = []
-freestream_velo = []
-Rossby_nums = []
-shaft_speed_std_dev = []
-time = []
+dataDir = "/Users/lancepharand/Desktop/URA S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data/"
 counter = 0
+turb_objects = []
+Turbulence_Parameters.fs = 25600 #Hz
+Turbulence_Parameters.N_samples = 6144000
+Turbulence_Parameters.overlap = 0.5
 
 ###################################################################
 ### Function Defs
 ###################################################################
-def window(size):
-    return np.ones(size)/float(size)
+# def window(size):
+#     return np.ones(size)/float(size)
 
 def signaltonoise(a, axis=0, ddof=0):
     if type(a) is not pd.DataFrame or type(a) is not np.ndarray or type(a) is not pd.Series:
@@ -39,56 +38,52 @@ def signaltonoise(a, axis=0, ddof=0):
     sd = np.std(a, axis=axis, ddof=ddof)
     return (20 * np.log10(abs(np.where(sd == 0, 0, m/sd))))
 
+
 ###################################################################
 ## Read In and Formating I/O Data
 ###################################################################
 
-
 for file in os.listdir(dataDir):
     if counter == 0:
-        temp_time = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+        time_stamps = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
         counter += 1
 
     if file == ".DS_Store":
         continue
-
     name_full = os.path.basename(dataDir + file).split("/")[-1]
     name = name_full.split(".mat")[0]
-    freestream_velo.append(float(name.split("_")[1]))
-    Rossby_nums.append(float(name.split("_")[3]))
-    shaft_speed_std_dev.append(float(name.split("_")[5]))
     mat_u = scipy.io.loadmat((dataDir + file), variable_names=['u'], squeeze_me=True, mat_dtype=True)
     mat_v = scipy.io.loadmat((dataDir + file), variable_names=['v'], squeeze_me=True, mat_dtype=True)
-    names_files.append("velo_from_" + name)
-    u_data_read.append(mat_u['u'])
-    v_data_read.append(mat_v['v'])
+    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'], v_velo=mat_v['v'],
+                                          freestream_velo=float(name.split("_")[1]), Rossby_num=float(name.split("_")[3]),
+                                          shaft_speed_std_dev=float(name.split("_")[5]))
+    temp_turb_obj.calc_L_ux()
+    temp_turb_obj.calc_turb_psd_spectrum()
+    temp_turb_obj.calc_turb_intensity()
+    turb_objects.append(temp_turb_obj)
 
-input_data = pd.DataFrame({"Freestream Velocity [m/s]" : freestream_velo,
-                        "Rossby Number" : Rossby_nums,
-                        "Shaft Speed Standard Deviation [rev/s]" : shaft_speed_std_dev})
+# For Debugging only
+for i, obj in enumerate(turb_objects):
+    print(turb_objects[i])
 
-time_data = np.array(temp_time['timeStamps']).T
-time = pd.Series(time_data, name='timeStamps')
+# Turb Int TEST
+print(f"Turbulence Intensity: {turb_objects[9].get_turb_int()}")
 
-u_temp_data = np.array(u_data_read).T
-u_velo = pd.DataFrame(u_temp_data)
+# L_ux TEST
+print(f"Integral Length scale (L_ux): {turb_objects[9].get_L_ux()} [m]")
 
-v_temp_data = np.array(v_data_read).T
-v_velo = pd.DataFrame(v_temp_data)
-
-q_var = np.var(u_temp_data, axis=0) + (2 * np.var(v_temp_data, axis=0))
-
-fs_temp = input_data.iloc[:, 0]
-turb_intensity = pd.Series((np.sqrt(q_var) / (fs_temp * math.sqrt(3))), name="Turbulence Intensity")
-
-snr_u_velo = pd.Series(signaltonoise(u_velo, axis=0, ddof=0), name="SNR of u velo [dB]")
-
-total_data = pd.concat([input_data, turb_intensity, snr_u_velo], axis=1)
-total_data.index = names_files
-
-IO_data = pd.concat([input_data, turb_intensity], axis=1)
-IO_data.index = names_files
-
+# PSD TEST
+plt.figure(figsize = (12, 6))
+plt.plot(turb_objects[9].get_wavenums(), turb_objects[9].get_E_k(), 'b') # plot 1 sided PSD
+plt.xlabel('Wavenumber (m^-1)')
+# plt.xlabel('Freq (Hz)')
+plt.yscale('log')
+plt.xscale('log')
+plt.ylabel('Power Density (Amp^2/Hz)')
+# plt.xlim(0, (30000))
+plt.ylim(1e-14, 1)
+plt.grid()
+plt.show()
 
 ###################################################################
 ## Data Analysis and Trends
@@ -114,7 +109,7 @@ IO_data.index = names_files
 # from sklearn.pipeline import Pipeline
 #
 # poly_reg = Pipeline([('poly', PolynomialFeatures(degree = 4)),
-#                      ('lasso', LassoCV(alphas=np.linspace(0, 1, 100), max_iter=2000, tol=1e-4, random_state=42))]
+#                      ('lasso', LassoCV(alphas=np.linspace(0, 1, 100), max_iter=2000, tol=1e-3, random_state=42))]
 #                     )
 #
 # poly_reg.fit(input_data, turb_intensity)
@@ -129,50 +124,32 @@ IO_data.index = names_files
 
 
 
-print(1)
 
 
-## Generate turbulence PSD spectrum
+###################################################################
+## EXTRA
+###################################################################
+## PSD Plot format
+# plt.figure(figsize = (12, 6))
+# plt.plot(fft_freq, E_k, 'b') # plot 1 sided PSD
+# # plt.xlabel('Wavenumber (m^-1)')
+# plt.xlabel('Freq (Hz)')
+# plt.yscale('log')
+# plt.xscale('log')
+# plt.ylabel('Power Density (Amp^2/Hz)')
+# # plt.xlim(0, (30000))
+# plt.ylim(1e-14, 1)
+# plt.grid()
+# plt.show()
 
-fs = 25600 #Hz
-s = u_velo.iloc[:, 0] - np.mean(u_velo.iloc[:, 0])
-N = u_velo.iloc[:, 0].shape[0]
-
-# # For debugging ONLY:
-# N = 60000
-# T = 1/fs
-# x = np.linspace(0.0, N*T, N)
-# s = np.sin(50.0 * 2.0*np.pi*x) + 0.5*np.sin(80.0 * 2.0*np.pi*x)
-
-y_fft = np.fft.fft(s)
-fftfreq = np.linspace(0, fs/2, (N//2)+1)
-E_1D = 0.5 * signal.fftconvolve(in1=y_fft, in2=y_fft)
-y_psd = (np.abs(E_1D) ** 2) / (fs * N) # 2 sided
-y_psd = y_psd[:((N//2)+1)] # 1 sided
-y_psd[1:-1] = 2 * y_psd[1:-1] #double values except for dc gain and nyquist freq
-
-# y_psd = (np.abs(y_fft) ** 2) / (fs * N) # 2 sided
-# y_psd = y_psd[:((N//2)+1)] # 1 sided
-# y_psd[1:-1] = 2 * y_psd[1:-1] #double values except for dc gain and nyquist freq
-
-plt.figure(figsize = (12, 6))
-ax = plt.plot(fftfreq, y_psd, 'b') # plot 1 sided PSD
-plt.xlabel('Freq (Hz)')
-plt.yscale('log')
-plt.xscale('log')
-plt.ylabel('Power Density (Amp^2/Hz)')
-# plt.xlim(0, (30000))
-# plt.ylim(0, 1e6)
-plt.grid()
-plt.show()
-
-
-######## EXTRA
-## PSD
-# P = abs(y_fft)*2/len(y_fft)
-# plt.psd(u_velo.iloc[:, 0], Fs=fs, window="window_" , sides=)
-# plt.xlabel('Frequency')
-# plt.ylabel('PSD(db)')
+## Autocorrelation Plot format
+# plt.figure(figsize = (12, 6))
+# plt.plot(range(num_lags), R_ux, 'r')
+# plt.plot(range(R_ux_fit.size), R_ux_fit, 'b')
+# print(R_ux_fit.size)
+# plt.xlabel('Lags')
+# plt.ylabel('Correlation Coefficient')
+# plt.grid()
 # plt.show()
 
 ## OLD Scatter plot
@@ -204,6 +181,7 @@ plt.show()
 # plt.tight_layout()
 # plt.show()
 
+
 # # Fix left skew of turb intensity data
 # from sklearn.preprocessing import FunctionTransformer
 #
@@ -224,4 +202,5 @@ plt.show()
 # plt.title("Distribution after Transformation", fontsize=15)
 # sns.histplot(tr_turb_int, bins=20, kde=True, legend=False)
 # plt.show()
+
 
