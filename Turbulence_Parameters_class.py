@@ -14,9 +14,13 @@ from statsmodels.tsa.stattools import acf
 import scipy.signal as signal
 
 class Turbulence_Parameters:
+    # MUST BE SET by user
     fs = 0
     N_samples = 0
+
+    # DEFAULT: Don't need to be set
     overlap = 0.5
+    mesh_length = 0.06096 # [m] grid mesh length
 
     def __init__(self, filename, u_velo, v_velo, freestream_velo, Rossby_num, shaft_speed_std_dev):
         # Read in attributes
@@ -31,11 +35,12 @@ class Turbulence_Parameters:
         self.u_velo_fluct = self.u_velo - np.mean(self.u_velo)
         self.v_velo_fluct = self.v_velo - np.mean(self.v_velo)
         self.turb_int = 0
-        self.L_ux = 0
-        self.E_u = []
-        self.E_k = []
-        self.wavenums = []
-        self.freq_vals_psd = []
+        self.L_ux_non_dim = 0
+        self.E_u_non_dim = []
+        self.E_k_non_dim = []
+        # self.wavenums = []
+        self.freq_non_dim = []
+        # self.freq_vals_psd = []
 
     #########################################################################
     ## Get methods
@@ -67,20 +72,23 @@ class Turbulence_Parameters:
     def get_turb_int(self):
         return self.turb_int
 
-    def get_L_ux(self):
-        return self.L_ux
+    def get_L_ux_non_dim(self):
+        return self.L_ux_non_dim
 
-    def get_E_u(self):
-        return self.E_u
+    def get_E_u_non_dim(self):
+        return self.E_u_non_dim
 
-    def get_E_k(self):
-        return self.E_k
+    def get_E_k_non_dim(self):
+        return self.E_k_non_dim
 
-    def get_wavenums(self):
-        return self.wavenums
+    # def get_wavenums(self):
+    #     return self.wavenums
 
-    def get_freq_psd(self):
-        return self.freq_vals_psd
+    def get_freq_non_dim(self):
+        return self.freq_non_dim
+
+    # def get_freq_psd(self):
+    #     return self.freq_vals_psd
 
     #########################################################################
     ## Private methods for the class
@@ -126,7 +134,7 @@ class Turbulence_Parameters:
         time_lags = np.linspace(0, num_lags, num_lags) * (1 / self.fs)
         L_ux_fit = np.mean(self.u_velo) * integrate.trapezoid(y=R_ux_fit, x=time_lags)
 
-        self.L_ux = L_ux_fit
+        self.L_ux_non_dim = (L_ux_fit / self.mesh_length)
         # print(f"Integral length scale based on correlation coeff: {L_ux_fit} [m]")
 
     def calc_turb_psd_spectrum(self):
@@ -151,10 +159,12 @@ class Turbulence_Parameters:
         freq_psd, E_u_psd = signal.welch(self.u_velo_fluct, window='hamming', fs=self.fs, nperseg=M, noverlap=S/M, scaling='density')
         freq_psd, E_v_psd = signal.welch(self.v_velo_fluct, window='hamming', fs=self.fs, nperseg=M, noverlap=S/M, scaling='density')
 
-        self.freq_vals_psd = freq_psd
-        self.wavenums = 2 * math.pi * freq_psd / self.freestream_velo
-        self.E_u = E_u_psd
-        self.E_k = 0.5 * (E_u_psd + (2 * E_v_psd))  # assuming var(v_velo) = var(w_velo)
+        # self.freq_vals_psd = freq_psd
+        wavenums = 2 * math.pi * freq_psd / self.freestream_velo # m^-1
+        self.freq_non_dim = wavenums * self.mesh_length
+        self.E_u_non_dim = E_u_psd * wavenums / np.var(self.u_velo)
+        # print(np.var(self.u_velo))
+        self.E_k_non_dim = (0.5 * (E_u_psd + (2 * E_v_psd))) * wavenums / np.var(self.u_velo) # assuming var(v_velo) = var(w_velo)
 
     def calc_turb_intensity(self):
         u_temp_data = np.array(self.u_velo).T

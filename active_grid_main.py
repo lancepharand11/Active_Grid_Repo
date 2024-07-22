@@ -23,6 +23,7 @@ turb_objects = []
 Turbulence_Parameters.fs = 25600 #Hz
 Turbulence_Parameters.N_samples = 6144000
 Turbulence_Parameters.overlap = 0.5
+Turbulence_Parameters.mesh_length = 0.06096
 
 ###################################################################
 ### Function Defs
@@ -62,43 +63,55 @@ for file in os.listdir(dataDir):
     temp_turb_obj.calc_turb_intensity()
     turb_objects.append(temp_turb_obj)
 
-# For Debugging only
-for i, obj in enumerate(turb_objects):
-    print(turb_objects[i])
-
-# Turb Int TEST
-print(f"Turbulence Intensity: {turb_objects[9].get_turb_int()}")
-
-# L_ux TEST
-print(f"Integral Length scale (L_ux): {turb_objects[9].get_L_ux()} [m]")
-
-# PSD TEST
-plt.figure(figsize = (12, 6))
-plt.plot(turb_objects[9].get_wavenums(), turb_objects[9].get_E_k(), 'b') # plot 1 sided PSD
-plt.xlabel('Wavenumber (m^-1)')
-# plt.xlabel('Freq (Hz)')
-plt.yscale('log')
-plt.xscale('log')
-plt.ylabel('Power Density (Amp^2/Hz)')
-# plt.xlim(0, (30000))
-plt.ylim(1e-14, 1)
-plt.grid()
-plt.show()
+# # For Debugging only
+# for i, obj in enumerate(turb_objects):
+#     print(turb_objects[i])
+#
+# # Turb Int TEST
+# print(f"Turbulence Intensity: {turb_objects[1].get_turb_int()}")
+#
+# # L_ux TEST
+# print(f"Integral Length scale (L_ux): {turb_objects[1].get_L_ux_non_dim()} M (times mesh length)")
+#
+# # PSD TEST
+# plt.figure(figsize = (12, 6))
+# plt.plot(turb_objects[1].get_non_dim_freq(), turb_objects[1].get_E_k_non_dim(), 'b') # plot 1 sided PSD
+# plt.xlabel('kM')
+# # plt.xlabel('Freq (Hz)')
+# # plt.yscale('log')
+# plt.xscale('log')
+# plt.ylabel('k*E_k / var(u)')
+# # plt.xlim(0, (30000))
+# # plt.ylim(1e-14, 1)
+# plt.grid()
+# plt.show()
 
 ###################################################################
 ## Data Analysis and Trends
 ###################################################################
 
-# # Plot correlation heat map
-# data_corr = IO_data.corr()
-# plt.figure(figsize = (10, 8))
-# sns.heatmap(data_corr, cmap=sns.diverging_palette(0, 255, as_cmap=True))
-# plt.show()
-#
-# # Look at scatter plots
-# plt.figure(figsize = (10, 8))
-# sns.pairplot(IO_data)
-# plt.show()
+# Load Data into data frame for access
+IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
+                        "Freestream Velocity [m/s]": (turb_obj.get_freestream_velo() for turb_obj in turb_objects),
+                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
+                        "Shaft Speed Standard Deviation [rev/s]": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
+                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+                        "L_ux * M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                        "k*E_k / var(u) [Non-Dim PSD]": (turb_obj.get_E_k_non_dim() for turb_obj in turb_objects),
+                        "kM [Non-Dim Freq]": (turb_obj.get_freq_non_dim() for turb_obj in turb_objects)
+                        })
+
+# Plot correlation heat map
+data_corr = IO_data.iloc[:, 1:5].corr()
+plt.figure(figsize = (10, 8))
+sns.heatmap(data_corr, cmap=sns.diverging_palette(0, 255, as_cmap=True))
+plt.show()
+
+# Look at scatter plots
+plt.figure(figsize = (10, 8))
+sns.pairplot(IO_data.iloc[:, 1:5])
+plt.show()
+
 
 #########################################################################
 ## Create Single Output Lasso regression with polynomial features
