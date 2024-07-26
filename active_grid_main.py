@@ -1,6 +1,7 @@
 # Initial Turbulence Intensity Model for Active Grid
 # Author: Lance Pharand, 2024
 # NOTEs:
+# See ReadMe and License file (Please reference me if you use this code)
 # Download the following packages below if not installed already
 # !! IMPORTANT Set the Turbulence Parameters Class variables in the "Initializations" section !!
 
@@ -26,10 +27,8 @@ Turbulence_Parameters.overlap = 0.5
 Turbulence_Parameters.mesh_length = 0.06096
 
 ###################################################################
-### Function Defs
+### Functions and Classes Defs
 ###################################################################
-# def window(size):
-#     return np.ones(size)/float(size)
 
 def signaltonoise(a, axis=0, ddof=0):
     if type(a) is not pd.DataFrame or type(a) is not np.ndarray or type(a) is not pd.Series:
@@ -63,10 +62,8 @@ for file in os.listdir(dataDir):
     temp_turb_obj.calc_turb_intensity()
     turb_objects.append(temp_turb_obj)
 
-# # For Debugging only
-# for i, obj in enumerate(turb_objects):
-#     print(turb_objects[i])
-#
+
+# # To view Turbulence Characteristics of a trial
 # # Turb Int TEST
 # print(f"Turbulence Intensity: {turb_objects[1].get_turb_int()}")
 #
@@ -74,9 +71,9 @@ for file in os.listdir(dataDir):
 # print(f"Integral Length scale (L_ux): {turb_objects[1].get_L_ux_non_dim()} M (times mesh length)")
 #
 # # PSD TEST
-# plt.figure(figsize = (12, 6))
-# plt.plot(turb_objects[1].get_non_dim_freq(), turb_objects[1].get_E_k_non_dim(), 'b') # plot 1 sided PSD
-# plt.xlabel('kM')
+# plt.figure(figsize=(10, 8))
+# plt.plot(turb_objects[1].get_freq_non_dim(), turb_objects[1].get_E_k_non_dim(), 'b')
+# plt.xlabel('k*M')
 # # plt.xlabel('Freq (Hz)')
 # # plt.yscale('log')
 # plt.xscale('log')
@@ -86,9 +83,6 @@ for file in os.listdir(dataDir):
 # plt.grid()
 # plt.show()
 
-###################################################################
-## Data Analysis and Trends
-###################################################################
 
 # Load Data into data frame for access
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
@@ -101,69 +95,125 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "kM [Non-Dim Freq]": (turb_obj.get_freq_non_dim() for turb_obj in turb_objects)
                         })
 
+
+###################################################################
+## Data Analysis and Trends
+###################################################################
+
 # Plot correlation heat map
-data_corr = IO_data.iloc[:, 1:5].corr()
-plt.figure(figsize = (10, 8))
-sns.heatmap(data_corr, cmap=sns.diverging_palette(0, 255, as_cmap=True))
+data_corr = IO_data.iloc[:, 1:6].corr()
+plt.figure(figsize=(10, 8))
+sns.heatmap(data_corr, cmap=sns.diverging_palette(0, 255, as_cmap=True), annot=True)
 plt.show()
 
 # Look at scatter plots
-plt.figure(figsize = (10, 8))
-sns.pairplot(IO_data.iloc[:, 1:5])
+plt.figure(figsize=(10, 8))
+sns.pairplot(IO_data.iloc[:, 1:6], kind="reg", diag_kind="hist", plot_kws={'line_kws':{'color':'red'}})
 plt.show()
 
 
 #########################################################################
-## Create Single Output Lasso regression with polynomial features
+## Preprocessing, Import functions, and Define the data
 #########################################################################
 
-# from sklearn.preprocessing import PolynomialFeatures
-# from sklearn.linear_model import LassoCV
-# from sklearn.pipeline import Pipeline
-#
-# poly_reg = Pipeline([('poly', PolynomialFeatures(degree = 4)),
-#                      ('lasso', LassoCV(alphas=np.linspace(0, 1, 100), max_iter=2000, tol=1e-3, random_state=42))]
-#                     )
-#
-# poly_reg.fit(input_data, turb_intensity)
-#
-# print('Alphas', poly_reg['lasso'].alphas_)
-#
-# plt.figure(figsize=(12, 6))
-# plt.plot(poly_reg['lasso'].alphas_, poly_reg['lasso'].mse_path_)
-# plt.xlabel('Alpha')
-# plt.ylabel('Cross Validation Score')
+from sklearn.preprocessing import PolynomialFeatures, PowerTransformer, FunctionTransformer, StandardScaler
+from sklearn.linear_model import LassoCV
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.feature_selection import SelectFromModel
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import learning_curve
+from sklearn.metrics import root_mean_squared_error
+
+# Split the data. NOTE: Using only turb intensity for the y
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4]
+x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2,
+                                                    stratify=X["Freestream Velocity [m/s]"], random_state=42)
+
+# NOT NEEDED: Transform y data to reduce - skew
+# output_trans = TransformedTargetRegressor(func=np.log, inverse_func=np.exp)
+# y_train_trans = output_trans.transform(y_train)
+
+#########################################################################
+## Create Single Output Ridge/ElasticNet regression with polynomial features
+#########################################################################
+from sklearn.linear_model import RidgeCV, ElasticNetCV
+from sklearn.feature_selection import RFECV
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.inspection import permutation_importance
+
+# Create preprocessor
+preprocessor = ColumnTransformer(transformers=[
+                                ('poly', PolynomialFeatures(degree=3, include_bias=False), ["Rossby Number"])
+                                ],
+                                remainder='passthrough')
+
+# OLD: Scaler and Normalizer tested. No impact so removed
+# ('scaler', StandardScaler(), ["Freestream Velocity [m/s]", "Rossby Number", "Shaft Speed Standard Deviation [rev/s]"]),
+# ('scaler', MinMaxScaler(), ["Freestream Velocity [m/s]", "Rossby Number", "Shaft Speed Standard Deviation [rev/s]"]),
+
+# Create pipeline w/ RidgeCV and preprocessor
+poly_reg_ridge = Pipeline(steps=[('preprocessor', preprocessor),
+                                 ('model', RidgeCV(alphas=np.linspace(0.1, 1, 100), fit_intercept=True,
+                                  scoring='neg_root_mean_squared_error', cv=5))
+                                ])
+
+# # Check learning_curves for over or underfitting of model
+# train_sizes, train_scores, valid_scores = learning_curve(poly_reg_ridge, X, Y, train_sizes=np.linspace(0.1, 1.0, 50),
+#                                                          cv=5, scoring='neg_root_mean_squared_error', random_state=42)
+# train_errors = -train_scores.mean(axis=1)
+# valid_errors = -valid_scores.mean(axis=1)
+# plt.plot(train_sizes, train_errors, 'r-+', label='Training error')
+# plt.plot(train_sizes, valid_errors, 'b-', label='Validation error')
+# plt.legend(loc='best')
+# plt.xlabel('Set Size')
+# plt.ylabel('RMSE')
 # plt.show()
 
+# # Eval if model is an improvement using normalized rmse as metric (normalized by diff between max and min observed in test set)
+# cv_scores_full_model = cross_val_score(poly_reg_elastic, X, Y, scoring='neg_root_mean_squared_error', cv=5)
+# nrmse_full_model = np.abs(cv_scores_full_model) / (max(y_test) - min(y_test))
 
+# Fit model and obtain error
+poly_reg_ridge.fit(x_train, y_train)
+y_pred_full = poly_reg_ridge.predict(x_test)
+rmse_full_model = root_mean_squared_error(y_true=y_test, y_pred=y_pred_full)
+nrmse_full_model = np.abs(rmse_full_model) / (max(y_test) - min(y_test))
+print(f'Model - Score: {poly_reg_ridge.score(x_test, y_test)}')
+list_feat = poly_reg_ridge['preprocessor'].get_feature_names_out()
+
+# Plot residuals
+plt.figure(figsize=(10, 8))
+residuals = y_test - y_pred_full
+sns.regplot(x=y_pred_full, y=residuals, ci=None, color='b')
+plt.xlabel('Predicted Values')
+plt.ylabel('Residuals')
+plt.show()
+
+# # Print coefficients
+# feat_coeffs = poly_reg_ridge['model'].coef_
+# for i, coeff in enumerate(feat_coeffs):
+#     print(f'Feature {i} coefficient: {coeff}')
+
+# # Plot/print feature importances
+# feat_imp = permutation_importance(poly_reg_ridge, x_train, y_train, scoring='neg_root_mean_squared_error', random_state=42)
+# mean_imp = feat_imp.importances_mean
+# for i, val in enumerate(mean_imp):
+#     print(f'Input Feature ({i}) Importance: {val}')
 
 
 
 ###################################################################
 ## EXTRA
 ###################################################################
-## PSD Plot format
-# plt.figure(figsize = (12, 6))
-# plt.plot(fft_freq, E_k, 'b') # plot 1 sided PSD
-# # plt.xlabel('Wavenumber (m^-1)')
-# plt.xlabel('Freq (Hz)')
-# plt.yscale('log')
-# plt.xscale('log')
-# plt.ylabel('Power Density (Amp^2/Hz)')
-# # plt.xlim(0, (30000))
-# plt.ylim(1e-14, 1)
-# plt.grid()
-# plt.show()
+## Results
+# Full Ridge Model w/o scaling or normalizing - Normalized Root Mean Squared Error: 0.10809219101201785
+# Full Ridge Model w/o scaling or normalizing - Score: 0.8643151448427969
+# Full Ridge Model w/ StandardScaling: Normalized Root Mean Squared Error= 0.11031650189119191 (NO impact, so removed)
+# Full Ridge Model w/ MinMaxScaling: Normalized Root Mean Squared Error= 0.10893274961590171 (NO impact, so removed)
 
-## Autocorrelation Plot format
-# plt.figure(figsize = (12, 6))
-# plt.plot(range(num_lags), R_ux, 'r')
-# plt.plot(range(R_ux_fit.size), R_ux_fit, 'b')
-# print(R_ux_fit.size)
-# plt.xlabel('Lags')
-# plt.ylabel('Correlation Coefficient')
-# plt.grid()
-# plt.show()
 
 ## OLD Scatter plot
 # from pandas.plotting import scatter_matrix
@@ -194,26 +244,70 @@ plt.show()
 # plt.tight_layout()
 # plt.show()
 
+#########################################################################
+## ORIGINAL: Create Single Output Linear regression with polynomial features
+#########################################################################
 
-# # Fix left skew of turb intensity data
-# from sklearn.preprocessing import FunctionTransformer
+# # Create preprocessor
+# preprocessor = ColumnTransformer(transformers=[
+#                                 ('poly', PolynomialFeatures(degree=3, include_bias=False), ["Rossby Number"])
+#                                 ],
+#                                 remainder='passthrough')
 #
-# print(f"Skewness before: {IO_data['Turbulence Intensity'].skew()}")
+# # Create pipeline
+# poly_reg = Pipeline([('preprocessor', preprocessor),
+#                      ('model', LinearRegression(fit_intercept=True))
+#                      ])
 #
-# sqr_tr = FunctionTransformer(lambda X: X ** 3, inverse_func=lambda X: X ** 1/3)
-# # sqr_tr = FunctionTransformer(np.square, inverse_func=np.sqrt)
-# tr_turb_int = sqr_tr.transform(IO_data['Turbulence Intensity'])
-
-# print(f"Skewness after: {tr_turb_int.skew()}")
-
-# plt.figure(figsize=(15, 6))
-# plt.subplot(1, 2, 1)
-# plt.title("Distribution before Transformation", fontsize=15)
-# sns.histplot(IO_data['Turbulence Intensity'], kde=True, color="red")
-# plt.subplot(1, 2, 2)
+# # # Create Target transformer (HAD little impact, so removed)
+# # poly_reg_trans = TransformedTargetRegressor(regressor=poly_reg,
+# #                                             transformer=PowerTransformer(method='yeo-johnson', standardize=False))
 #
-# plt.title("Distribution after Transformation", fontsize=15)
-# sns.histplot(tr_turb_int, bins=20, kde=True, legend=False)
+# # Check learning_curves for over or underfitting of model
+# train_sizes, train_scores, valid_scores = learning_curve(poly_reg, X, Y, train_sizes=np.linspace(0.1, 1.0, 50),
+#                                                          cv=5, scoring='neg_root_mean_squared_error', random_state=42)
+# train_errors = -train_scores.mean(axis=1)
+# valid_errors = -valid_scores.mean(axis=1)
+# plt.plot(train_sizes, train_errors, 'r-+', label='Training error')
+# plt.plot(train_sizes, valid_errors, 'b-', label='Validation error')
+# plt.legend(loc='best')
+# plt.xlabel('Set Size')
+# plt.ylabel('RMSE')
+# plt.show()
+#
+# # # Eval if model is sufficient using normalized rmse as metric (normalized by diff between max and min observed in test set)
+# # cv_scores = cross_val_score(poly_reg, X, Y, scoring='neg_root_mean_squared_error', cv=5)
+# # nrmse = np.abs(cv_scores) / (max(y_test) - min(y_test))
+# # print(f'Normalized Root Mean Squared Error: {np.mean(nrmse)}')
+#
+# # Results of cv and learning curves are good so fit model
+# poly_reg.fit(x_train, y_train)
+#
+# # Obtain predicitons
+# y_pred = poly_reg.predict(x_test)
+# rmse_full_model = root_mean_squared_error(y_true=y_test, y_pred=y_pred)
+# nrmse_full_model = np.abs(rmse_full_model) / (max(y_test) - min(y_test))
+# print(f'Model - Score: {poly_reg.score(x_test, y_test)}')
+# list_feat = poly_reg['preprocessor'].get_feature_names_out()
+#
+# # Plot residuals
+# plt.figure(figsize=(10, 8))
+# residuals = y_test - y_pred
+# sns.regplot(x=y_pred, y=residuals, ci=None, color='b')
+# plt.xlabel('Predicted Values')
+# plt.ylabel('Residuals')
 # plt.show()
 
 
+# # Plot predictions vs y test (Turb intensity in this case)
+# plt.figure(figsize=(10, 8))
+# sns.regplot(x=y_test, y=y_pred, ci=None, color='b')
+# plt.xlabel('Actual Turbulence Intensities')
+# plt.ylabel('Predicted Turbulence Intensities')
+# plt.legend(loc='best')
+# plt.show()
+
+# # Feature importances
+# feat_imp = poly_reg['model'].coef_
+# for i, coeff in enumerate(feat_imp):
+#     print(f'Feature {i}: {coeff}')
