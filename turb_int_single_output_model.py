@@ -86,13 +86,13 @@ for file in os.listdir(dataDir):
 
 # Load Data into data frame for access
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
-                        "Freestream Velocity [m/s]": (turb_obj.get_freestream_velo() for turb_obj in turb_objects),
+                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
                         "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
                         "Shaft Speed Standard Deviation [rev/s]": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
                         "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
                         "L_ux * M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
-                        "k*E_k / var(u) [Non-Dim PSD]": (turb_obj.get_E_k_non_dim() for turb_obj in turb_objects),
-                        "kM [Non-Dim Freq]": (turb_obj.get_freq_non_dim() for turb_obj in turb_objects)
+                        "k*E_11 / var(u) [Non-Dim PSD]": (turb_obj.get_E_u().tolist() for turb_obj in turb_objects),
+                        "k*M [Non-Dim Freq]": (turb_obj.get_freq_non_dim().tolist() for turb_obj in turb_objects)
                         })
 
 
@@ -130,7 +130,7 @@ from sklearn.metrics import root_mean_squared_error
 X = IO_data.iloc[:, 1:4]
 Y = IO_data.iloc[:, 4]
 x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2,
-                                                    stratify=X["Freestream Velocity [m/s]"], random_state=42)
+                                                    stratify=X["Grid Re"], random_state=42)
 
 # NOT NEEDED: Transform y data to reduce - skew
 # output_trans = TransformedTargetRegressor(func=np.log, inverse_func=np.exp)
@@ -139,8 +139,7 @@ x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2,
 #########################################################################
 ## Create Single Output Ridge/ElasticNet regression with polynomial features
 #########################################################################
-from sklearn.linear_model import RidgeCV, ElasticNetCV
-from sklearn.feature_selection import RFECV
+from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.inspection import permutation_importance
 

@@ -19,6 +19,7 @@ class Turbulence_Parameters:
     N_samples = 0
 
     # DEFAULT: Don't need to be set
+    kinematicVisc_Air = 1.516e-5 # m^2/s, Used air at 20 C
     overlap = 0.5
     mesh_length = 0.06096 # [m] grid mesh length
 
@@ -34,10 +35,10 @@ class Turbulence_Parameters:
         # Calculated attributes
         self.u_velo_fluct = self.u_velo - np.mean(self.u_velo)
         self.v_velo_fluct = self.v_velo - np.mean(self.v_velo)
+        self.grid_Re = self.freestream_velo * self.mesh_length / self.kinematicVisc_Air
         self.turb_int = 0
         self.L_ux_non_dim = 0
-        self.E_u_non_dim = []
-        self.E_k_non_dim = []
+        self.E_u = []
         # self.wavenums = []
         self.freq_non_dim = []
         # self.freq_vals_psd = []
@@ -69,17 +70,17 @@ class Turbulence_Parameters:
     def get_v_velo_fluct(self):
         return self.v_velo_fluct
 
+    def get_grid_Re(self):
+        return self.grid_Re
+
     def get_turb_int(self):
         return self.turb_int
 
     def get_L_ux_non_dim(self):
         return self.L_ux_non_dim
 
-    def get_E_u_non_dim(self):
-        return self.E_u_non_dim
-
-    def get_E_k_non_dim(self):
-        return self.E_k_non_dim
+    def get_E_u(self):
+        return self.E_u
 
     # def get_wavenums(self):
     #     return self.wavenums
@@ -162,9 +163,18 @@ class Turbulence_Parameters:
         # self.freq_vals_psd = freq_psd
         wavenums = 2 * math.pi * freq_psd / self.freestream_velo # m^-1
         self.freq_non_dim = wavenums * self.mesh_length
-        self.E_u_non_dim = E_u_psd * wavenums / np.var(self.u_velo)
-        # print(np.var(self.u_velo))
-        self.E_k_non_dim = (0.5 * (E_u_psd + (2 * E_v_psd))) * wavenums / np.var(self.u_velo) # assuming var(v_velo) = var(w_velo)
+
+        # 1D longitudinal energy spectrum (non-dim):
+        self.E_u = wavenums * E_u_psd / np.var(self.u_velo)
+        # Pre-multiplied by wavenumber:
+        # self.E_u = E_u_psd * wavenums
+
+        # # NEED TO work on this further:
+        # self.E_k = 2 * np.pi * (wavenums ** 2) * (abs(E_u_psd) ** 2)
+        # Not premultiplied:
+        # self.E_k_non_dim = 0.5 * (E_u_psd + (2 * E_v_psd)) # assuming var(v_velo) = var(w_velo)
+        # Pre-multiplied by wavenumber:
+        # self.E_k = (0.5 * (E_u_psd + (2 * E_v_psd))) * wavenums  # assuming var(v_velo) = var(w_velo)
 
     def calc_turb_intensity(self):
         u_temp_data = np.array(self.u_velo).T
@@ -172,9 +182,6 @@ class Turbulence_Parameters:
         q_var = np.var(u_temp_data, axis=0) + (2 * np.var(v_temp_data, axis=0)) # assuming v^2 = w^2
 
         self.turb_int = np.sqrt(q_var) / (self.freestream_velo * math.sqrt(3))
-
-
-
 
 
 
