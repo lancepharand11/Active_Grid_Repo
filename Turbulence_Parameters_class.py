@@ -30,7 +30,7 @@ class Turbulence_Parameters:
         self.v_velo = v_velo
         self.freestream_velo = freestream_velo
         self.Rossby_num = Rossby_num
-        self.shaft_speed_std_dev = shaft_speed_std_dev
+        self.shaft_speed_std_dev = shaft_speed_std_dev * self.mesh_length / self.freestream_velo # non-dim
 
         # Calculated attributes
         self.u_velo_fluct = self.u_velo - np.mean(self.u_velo)
@@ -165,9 +165,9 @@ class Turbulence_Parameters:
         self.freq_non_dim = wavenums * self.mesh_length
 
         # 1D longitudinal energy spectrum (non-dim):
-        self.E_u = wavenums * E_u_psd / np.var(self.u_velo)
+        self.E_u = E_u_psd / (self.freestream_velo * self.mesh_length)
         # Pre-multiplied by wavenumber:
-        # self.E_u = E_u_psd * wavenums
+        # self.E_u = wavenums * E_u_psd / np.var(self.u_velo)
 
         # # NEED TO work on this further:
         # self.E_k = 2 * np.pi * (wavenums ** 2) * (abs(E_u_psd) ** 2)
