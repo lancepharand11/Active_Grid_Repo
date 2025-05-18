@@ -1,0 +1,273 @@
+# Multi Output Neural Network Model for Active Grid
+# Author: Lance Pharand, 2025
+# NOTEs:
+# See ReadMe and License file (Please reference me if you use this code in an academic application)
+# Download the following packages below if not installed already
+# !! IMPORTANT Set the Turbulence Parameters Class variables in the "Initializations" section !!
+
+###################################################################
+## Initializations and Data Loading
+###################################################################
+import scipy.io
+import pandas as pd
+import numpy as np
+import os
+from Turbulence_Parameters_class import Turbulence_Parameters
+import joblib
+from torch.utils.data import DataLoader, TensorDataset
+import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import MinMaxScaler
+from torch import nn, optim
+import torch
+from scipy import stats
+import copy
+
+dataDir = "/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data/"
+counter = 0
+turb_objects = []
+Turbulence_Parameters.fs = 25600
+Turbulence_Parameters.N_samples = 6144000
+Turbulence_Parameters.overlap = 0.5
+Turbulence_Parameters.mesh_length = 0.06096
+
+for file in os.listdir(dataDir):
+    if counter == 0:
+        time_stamps = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+        counter += 1
+
+    if file == ".DS_Store":
+        continue
+    name_full = os.path.basename(dataDir + file).split("/")[-1]
+    name = name_full.split(".mat")[0]
+    mat_u = scipy.io.loadmat((dataDir + file), variable_names=['u'], squeeze_me=True, mat_dtype=True)
+    mat_v = scipy.io.loadmat((dataDir + file), variable_names=['v'], squeeze_me=True, mat_dtype=True)
+    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'], v_velo=mat_v['v'],
+                                          freestream_velo=float(name.split("_")[1]), Rossby_num=float(name.split("_")[3]),
+                                          shaft_speed_std_dev=float(name.split("_")[5]))
+    temp_turb_obj.calc_L_ux()
+    temp_turb_obj.calc_turb_intensity()
+    turb_objects.append(temp_turb_obj)
+
+IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
+                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
+                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
+                        "Shaft Speed Standard Deviation * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
+                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                        })
+
+###################################################################
+## Preprocessing
+###################################################################
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4:6]
+XY = pd.concat([X, Y], axis=1)
+z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
+threshold = 3  # Threshold z-score
+rows_with_outlier = (z_scores > threshold).any(axis=1)
+XY_filtered = XY[~rows_with_outlier]
+
+X_filtered = XY_filtered.iloc[:, :X.shape[1]]
+Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
+
+X_all = torch.tensor(X_filtered.values, dtype=torch.float32)
+Y_all = torch.tensor(Y_filtered.values, dtype=torch.float32)
+
+###################################################################
+## K-Fold CV Setup
+###################################################################
+k_folds = 5
+kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
+
+input_size, output_size = X_all.shape[1], Y_all.shape[1]
+hidden_size = 64
+num_epochs = 1000
+learning_rate = 1e-3
+batch_size = 16
+device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+
+
+def get_model():
+    return nn.Sequential(nn.Linear(input_size, hidden_size),
+                         nn.BatchNorm1d(hidden_size),
+                         nn.LeakyReLU(),
+                         nn.Linear(hidden_size, hidden_size // 2),
+                         nn.BatchNorm1d(hidden_size // 2),
+                         nn.LeakyReLU(),
+                         nn.Linear(hidden_size // 2, output_size)
+                         ).to(device)
+
+
+###################################################################
+## K-Fold based training Loop
+###################################################################
+fold_results = []
+best_overall_rmse = np.inf
+best_overall_weights = None
+best_norm_rmse_turb_int = None
+best_norm_rmse_L_ux = None
+
+for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
+    print(f"\nFold {fold + 1}")
+    scaler_x = MinMaxScaler(feature_range=(-1, 1))
+    scaler_y = MinMaxScaler(feature_range=(-1, 1))
+
+    x_train = scaler_x.fit_transform(X_all[train_idx])
+    y_train = scaler_y.fit_transform(Y_all[train_idx])
+    x_val = scaler_x.transform(X_all[val_idx])
+    y_val = scaler_y.transform(Y_all[val_idx])
+
+    x_train = torch.tensor(x_train, dtype=torch.float32).to(device)
+    y_train = torch.tensor(y_train, dtype=torch.float32).to(device)
+    x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
+    y_val = torch.tensor(y_val, dtype=torch.float32).to(device)
+
+    train_dataset = TensorDataset(x_train, y_train)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    model = get_model()
+    training_crit = nn.SmoothL1Loss()
+    mse_crit = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+
+    best_rmse, best_epoch = np.inf, -1
+    best_weights = None
+    best_scaler_x = None
+    best_scaler_y = None
+
+    train_rmse_curve = []
+    val_rmse_curve = []
+
+    for epoch in range(num_epochs):
+        model.train()
+        for xb, yb in train_loader:
+            optimizer.zero_grad()
+            y_pred = model(xb)
+            loss = training_crit(y_pred, yb)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            y_train_pred = model(x_train)
+            y_val_pred = model(x_val)
+
+            y_train_pred_unscaled = torch.tensor(scaler_y.inverse_transform(y_train_pred.cpu().numpy()))
+            y_val_pred_unscaled = torch.tensor(scaler_y.inverse_transform(y_val_pred.cpu().numpy()))
+
+            y_train_unscaled = torch.tensor(Y_all[train_idx].numpy())
+            y_val_unscaled = torch.tensor(Y_all[val_idx].numpy())
+
+            train_rmse = torch.sqrt(mse_crit(y_train_pred_unscaled, y_train_unscaled)).item()
+            val_rmse = torch.sqrt(mse_crit(y_val_pred_unscaled, y_val_unscaled)).item()
+
+            train_rmse_curve.append(train_rmse)
+            val_rmse_curve.append(val_rmse)
+
+            if val_rmse < best_rmse:
+                best_rmse = val_rmse
+                best_epoch = epoch
+                best_weights = copy.deepcopy(model.state_dict())
+
+    print(f"Best Epoch: {best_epoch}, Best RMSE (unscaled): {best_rmse:.4f}")
+    fold_results.append(best_rmse)
+
+    #
+    # Learning curve
+    #
+    plt.figure(figsize=(10, 8))
+    plt.plot(train_rmse_curve, label="Train RMSE (unscaled)")
+    plt.plot(val_rmse_curve, label="Val RMSE (unscaled)")
+    plt.xlabel("Epoch")
+    plt.ylabel("RMSE")
+    plt.title(f"Learning Curve - Fold {fold+1}")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    #
+    # Residual Plot
+    #
+    model.load_state_dict(best_weights)
+    model.eval()
+    with torch.no_grad():
+        y_val_pred = model(x_val)
+        y_val_pred_unscaled_np = scaler_y.inverse_transform(y_val_pred.cpu().numpy())
+        y_val_unscaled_np = Y_all[val_idx].numpy()
+        residuals = y_val_unscaled_np - y_val_pred_unscaled_np
+
+        # Compute per output RMSE
+        rmse_turb_int = torch.sqrt(torch.tensor(mse_crit(torch.tensor(y_val_pred_unscaled_np[:, 0]),
+                                                          torch.tensor(y_val_unscaled_np[:, 0])))
+                                   ).item()
+        rmse_L_ux = torch.sqrt(torch.tensor(mse_crit(torch.tensor(y_val_pred_unscaled_np[:, 1]),
+                                                      torch.tensor(y_val_unscaled_np[:, 1])))
+                               ).item()
+
+        # Normalize based on range
+        range_turb_int = Y["Turbulence Intensity"].max() - Y["Turbulence Intensity"].min()
+        range_L_ux = Y["L_ux / M"].max() - Y["L_ux / M"].min()
+        norm_rmse_turb_int = rmse_turb_int / range_turb_int
+        norm_rmse_L_ux = rmse_L_ux / range_L_ux
+
+        print(f"Fold {fold + 1} Normalized RMSEs:")
+        print(f"    Turbulence Intensity: {norm_rmse_turb_int:.4f}")
+        print(f"    L_ux / M: {norm_rmse_L_ux:.4f}")
+
+        for i, target_name in enumerate(["Turbulence Intensity", "L_ux / M"]):
+            plt.figure(figsize=(10, 8))
+            plt.scatter(y_val_pred_unscaled_np[:, i], residuals[:, i], alpha=0.7, label=f"Residuals for {target_name}")
+            plt.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Zero Residual Line")
+            plt.xlabel(f"Predicted {target_name} (unscaled)")
+            plt.ylabel(f"Residual {target_name} (unscaled)")
+            plt.title(f"Fold {fold + 1} Residual Plot: {target_name}")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+
+    # Track best model across all folds
+    if best_rmse < best_overall_rmse:
+        best_overall_rmse = best_rmse
+        best_norm_rmse_turb_int = norm_rmse_turb_int
+        best_norm_rmse_L_ux = norm_rmse_L_ux
+        best_overall_weights = copy.deepcopy(best_weights)
+        best_scaler_x = copy.deepcopy(scaler_x)
+        best_scaler_y = copy.deepcopy(scaler_y)
+
+
+###################################################################
+## Save Best Model
+###################################################################
+from datetime import datetime
+unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+out_dir = "Models_and_Results"
+os.makedirs(out_dir, exist_ok=True)
+
+model_fname = os.path.join(out_dir, f"best_model_{unique_id}.pth")
+scaler_x_fname = os.path.join(out_dir, f"scaler_x_{unique_id}.pkl")
+scaler_y_fname = os.path.join(out_dir, f"scaler_y_{unique_id}.pkl")
+log_fname = os.path.join(out_dir, "rmse_results.txt")
+
+torch.save(best_overall_weights, model_fname)
+joblib.dump(best_scaler_x, scaler_x_fname)
+joblib.dump(best_scaler_y, scaler_y_fname)
+
+print(f"\nSaved best model weights to: {model_fname}")
+print(f"Saved input scaler to: {scaler_x_fname}")
+print(f"Saved output scaler to: {scaler_y_fname}")
+
+# Log results
+log_line = (f"{unique_id}\t"
+            f"{os.path.basename(model_fname)}\t"
+            f"{best_overall_rmse:.4f}\t"
+            f"{best_norm_rmse_turb_int:.4f}\t"
+            f"{best_norm_rmse_L_ux:.4f}\n"
+            )
+
+with open(log_fname, "a") as f:
+    f.write(log_line)
+
+print(f"Appended results to {log_fname}")
+print(1)

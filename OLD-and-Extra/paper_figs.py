@@ -1,0 +1,145 @@
+# Figures for Active Grid Paper
+# Author: Lance Pharand, 2024
+# NOTEs:
+# See ReadMe and License file (Please reference me if you use this code in an academic application)
+# Download the following packages below if not installed already
+# !! IMPORTANT Set the Turbulence Parameters Class variables in the "Initializations" section !!
+
+###################################################################
+## Initializations and Functions
+###################################################################
+import scipy.io
+import pandas as pd
+import numpy as np
+import os
+from Turbulence_Parameters_class import Turbulence_Parameters
+import matplotlib.pyplot as plt
+
+dataDir = "/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data/"
+counter = 0
+turb_objects = []
+Turbulence_Parameters.fs = 25600 # Hz
+Turbulence_Parameters.N_samples = 6144000
+Turbulence_Parameters.overlap = 0.5 # Used for smoothing
+Turbulence_Parameters.mesh_length = 0.06096 # [m] grid mesh length
+
+###################################################################
+## Read in data
+###################################################################
+
+for file in os.listdir(dataDir):
+    if counter == 0:
+        time_stamps = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+        counter += 1
+
+    if file == ".DS_Store":
+        continue
+    name_full = os.path.basename(dataDir + file).split("/")[-1]
+    name = name_full.split(".mat")[0]
+    mat_u = scipy.io.loadmat((dataDir + file), variable_names=['u'], squeeze_me=True, mat_dtype=True)
+    mat_v = scipy.io.loadmat((dataDir + file), variable_names=['v'], squeeze_me=True, mat_dtype=True)
+    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'], v_velo=mat_v['v'],
+                                          freestream_velo=float(name.split("_")[1]), Rossby_num=float(name.split("_")[3]),
+                                          shaft_speed_std_dev=float(name.split("_")[5]))
+    # temp_turb_obj.calc_turb_psd_spectrum()
+    temp_turb_obj.calc_L_ux()
+    temp_turb_obj.calc_turb_intensity()
+    turb_objects.append(temp_turb_obj)
+
+
+IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
+                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
+                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
+                        "Shaft Speed Std Dev * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
+                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                        })
+
+###################################################################
+## Preprocessing and Model Setup
+###################################################################
+from scipy import stats
+
+# Split the data and combine it. NOTE: Using only turb intensity & integral length scale for the y
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4:6]
+XY = pd.concat([X, Y], axis=1)
+
+# Compute z-scores for each column
+z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
+threshold = 3  # Threshold z-score
+rows_with_outlier = (z_scores > threshold).any(axis=1)
+XY_filtered = XY[~rows_with_outlier]
+
+# Split back into X and Y
+X_filtered = XY_filtered.iloc[:, :X.shape[1]]
+Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
+
+#######################
+# 3D scatter plots
+#######################
+x = X_filtered.iloc[:, 0].values  # Grid Re
+y = X_filtered.iloc[:, 1].values  # Rossby Number
+z = X_filtered.iloc[:, 2].values  # Shaft Speed Std Dev
+
+y1 = Y_filtered.iloc[:, 0].values  # turb intensity
+y2 = Y_filtered.iloc[:, 1].values  # int length scale
+
+fig1 = plt.figure(figsize=(10, 8))
+ax1 = fig1.add_subplot(111, projection='3d')
+p1 = ax1.scatter(x, y, z, c=y1, cmap='magma',
+                 marker='o', s=50, alpha=0.8
+                 )
+cbar1 = fig1.colorbar(p1, ax=ax1, shrink=0.5, pad=0.1)
+cbar1.set_label('Turbulence Intensity')
+ax1.set_xlabel('Grid Re')
+ax1.set_ylabel('Rossby Number')
+ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf')
+ax1.set_title('3D Scatter: Turbulence Intensity')
+
+fig2 = plt.figure(figsize=(10, 8))
+ax2 = fig2.add_subplot(111, projection='3d')
+p2 = ax2.scatter(x, y, z, c=y2, cmap='viridis',
+                 marker='^', s=50, alpha=0.8
+                 )
+cbar2 = fig2.colorbar(p2, ax=ax2, shrink=0.5, pad=0.1)
+cbar2.set_label('L_ux / M')
+ax2.set_xlabel('Grid Re')
+ax2.set_ylabel('Rossby Number')
+ax2.set_zlabel('Shaft Speed Std Dev * M / u_inf')
+ax2.set_title('3D Scatter: Integral Length Scale')
+plt.show()
+
+#######################
+# Scatter Plot of Dataset Matrix
+#######################
+import seaborn as sns
+
+sns.pairplot(XY_filtered)
+plt.show()
+
+
+# #######################
+# # Correlation bar graph
+# #######################
+# XY_corr = XY_filtered.corr()
+# x_cols = X_filtered.columns.tolist()
+# y_cols = Y_filtered.columns.tolist()
+# corr_XY = XY_corr.loc[x_cols, y_cols]
+#
+# n_x = len(x_cols)
+# n_y = len(y_cols)
+# ind = np.arange(n_x)
+# width = 0.8 / n_y  # total width 0.8 divided among Y-bars. Leaves a 0.2 gap between features in the graph
+#
+# fig, ax = plt.subplots(figsize=(10, 8))
+# for i, y in enumerate(y_cols):
+#     ax.bar(ind + i * width, corr_XY[y].values, width, label=y)
+#
+# ax.set_xticks(ind + width * (n_y - 1) / 2)
+# ax.set_xticklabels(x_cols, rotation=30, ha='right')
+# ax.set_ylabel("Pearson r")
+# ax.set_title("Correlation of each X-feature with Y-labels")
+# ax.legend(title="Y variable", bbox_to_anchor=(1.05, 1), loc='upper left')
+# plt.tight_layout()
+# plt.show()

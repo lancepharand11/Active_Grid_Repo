@@ -37,7 +37,6 @@ def signaltonoise(a, axis=0, ddof=0):
 ## Read In and Formating I/O Data
 ###################################################################
 
-
 for file in os.listdir(dataDir):
     if counter == 0:
         temp_time = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
