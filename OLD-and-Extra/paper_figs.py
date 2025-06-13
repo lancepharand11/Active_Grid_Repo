@@ -4,28 +4,25 @@
 # See ReadMe and License file (Please reference me if you use this code in an academic application)
 # Download the following packages below if not installed already
 # !! IMPORTANT Set the Turbulence Parameters Class variables in the "Initializations" section !!
+# These are only a portion of the figures seen in the paper
 
-###################################################################
-## Initializations and Functions
-###################################################################
 import scipy.io
 import pandas as pd
 import numpy as np
 import os
-from Turbulence_Parameters_class import Turbulence_Parameters
 import matplotlib.pyplot as plt
+from Turbulence_Parameters_class import Turbulence_Parameters
+from torch.utils.data import DataLoader, TensorDataset
+import joblib
 
 dataDir = "/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data/"
 counter = 0
 turb_objects = []
-Turbulence_Parameters.fs = 25600 # Hz
+Turbulence_Parameters.fs = 25600 #Hz
 Turbulence_Parameters.N_samples = 6144000
-Turbulence_Parameters.overlap = 0.5 # Used for smoothing
-Turbulence_Parameters.mesh_length = 0.06096 # [m] grid mesh length
-
-###################################################################
-## Read in data
-###################################################################
+Turbulence_Parameters.overlap = 0.5
+Turbulence_Parameters.mesh_length = 0.06096
+Turbulence_Parameters.num_sections = 4
 
 for file in os.listdir(dataDir):
     if counter == 0:
@@ -38,22 +35,51 @@ for file in os.listdir(dataDir):
     name = name_full.split(".mat")[0]
     mat_u = scipy.io.loadmat((dataDir + file), variable_names=['u'], squeeze_me=True, mat_dtype=True)
     mat_v = scipy.io.loadmat((dataDir + file), variable_names=['v'], squeeze_me=True, mat_dtype=True)
-    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'], v_velo=mat_v['v'],
+    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'][4000000:], v_velo=mat_v['v'][4000000:],
                                           freestream_velo=float(name.split("_")[1]), Rossby_num=float(name.split("_")[3]),
                                           shaft_speed_std_dev=float(name.split("_")[5]))
-    # temp_turb_obj.calc_turb_psd_spectrum()
+
+    temp_turb_obj.calc_turb_psd_spectrum()
     temp_turb_obj.calc_L_ux()
     temp_turb_obj.calc_turb_intensity()
+    temp_turb_obj.psd_breakaway_freq_inertial()
+    temp_turb_obj.psd_breakaway_freq_dissip()
+    temp_turb_obj.psd_inertial_range_slope()
+    temp_turb_obj.psd_integral_sectioning()
     turb_objects.append(temp_turb_obj)
-
 
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
                         "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
                         "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
-                        "Shaft Speed Std Dev * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
+                        "Shaft Speed Standard Deviation * M / u_inf": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
                         "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                        "E_11 / (M * U) [Non-Dim PSD]": (turb_obj.get_E_u().tolist() for turb_obj in turb_objects),
+                        "Freq * M / U [Non-Dim Freq]": (turb_obj.get_freq_non_dim().tolist() for turb_obj in turb_objects),
+                        "Log(E_11 / (M * U))": (turb_obj.get_log_E_u() for turb_obj in turb_objects),
+                        "Log(Freq * M / U)": (turb_obj.get_log_freq_non_dim() for turb_obj in turb_objects),
+                        "PSD Integral Sections": (turb_obj.get_integral_sections() for turb_obj in turb_objects)
                         })
+
+
+col_labels = ["Integral section " + str(s) for s in range(Turbulence_Parameters.num_sections)]
+turb_sections = pd.DataFrame(IO_data.iloc[:, 10].to_list(), columns=col_labels)
+
+# Select core variables
+core_cols = [
+    "Grid Re",
+    "Rossby Number",
+    "Shaft Speed Standard Deviation * M / u_inf",
+    "Turbulence Intensity",
+    "L_ux / M"
+]
+
+# Combine and compute statistics
+df_all = pd.concat([IO_data[core_cols], turb_sections], axis=1)
+stats = df_all.agg(['mean', 'std', 'min', 'median', 'max']).T
+stats.index.name = 'Variable'
+stats.rename_axis(columns='Statistic', inplace=True)
+print(stats.to_markdown())
 
 ###################################################################
 ## Preprocessing and Model Setup
@@ -92,9 +118,9 @@ p1 = ax1.scatter(x, y, z, c=y1, cmap='magma',
                  )
 cbar1 = fig1.colorbar(p1, ax=ax1, shrink=0.5, pad=0.1)
 cbar1.set_label('Turbulence Intensity')
-ax1.set_xlabel('Grid Re')
+ax1.set_xlabel('Grid Re', labelpad=7)
 ax1.set_ylabel('Rossby Number')
-ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf')
+ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
 ax1.set_title('3D Scatter: Turbulence Intensity')
 
 fig2 = plt.figure(figsize=(10, 8))
@@ -104,19 +130,19 @@ p2 = ax2.scatter(x, y, z, c=y2, cmap='viridis',
                  )
 cbar2 = fig2.colorbar(p2, ax=ax2, shrink=0.5, pad=0.1)
 cbar2.set_label('L_ux / M')
-ax2.set_xlabel('Grid Re')
+ax2.set_xlabel('Grid Re', labelpad=7)
 ax2.set_ylabel('Rossby Number')
-ax2.set_zlabel('Shaft Speed Std Dev * M / u_inf')
+ax2.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
 ax2.set_title('3D Scatter: Integral Length Scale')
 plt.show()
 
-#######################
-# Scatter Plot of Dataset Matrix
-#######################
-import seaborn as sns
-
-sns.pairplot(XY_filtered)
-plt.show()
+# #######################
+# # Scatter Plot of Dataset Matrix
+# #######################
+# import seaborn as sns
+#
+# sns.pairplot(XY_filtered)
+# plt.show()
 
 
 # #######################

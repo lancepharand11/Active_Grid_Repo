@@ -215,15 +215,31 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
         print(f"    Turbulence Intensity: {norm_rmse_turb_int:.4f}")
         print(f"    L_ux / M: {norm_rmse_L_ux:.4f}")
 
+        temp_inputs = X_all[val_idx].detach().numpy()
+
         for i, target_name in enumerate(["Turbulence Intensity", "L_ux / M"]):
-            plt.figure(figsize=(10, 8))
-            plt.scatter(y_val_pred_unscaled_np[:, i], residuals[:, i], alpha=0.7, label=f"Residuals for {target_name}")
-            plt.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Zero Residual Line")
-            plt.xlabel(f"Predicted {target_name} (unscaled)")
-            plt.ylabel(f"Residual {target_name} (unscaled)")
-            plt.title(f"Fold {fold + 1} Residual Plot: {target_name}")
-            plt.legend()
-            plt.grid(True)
+            # plt.figure(figsize=(10, 8))
+            # plt.scatter(y_val_pred_unscaled_np[:, i], residuals[:, i], alpha=0.7, label=f"Residuals for {target_name}")
+            # plt.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Zero Residual Line")
+            # plt.xlabel(f"Predicted {target_name} (unscaled)")
+            # plt.ylabel(f"Residual {target_name} (unscaled)")
+            # plt.title(f"Fold {fold + 1} Residual Plot: {target_name}")
+            # plt.legend()
+            # plt.grid(True)
+            # plt.show()
+
+            fig1 = plt.figure(figsize=(10, 8))
+            ax1 = fig1.add_subplot(111, projection='3d')
+            p1 = ax1.scatter(temp_inputs[:, 0], temp_inputs[:, 1], temp_inputs[:, 2],
+                             c=residuals[:, i], cmap='magma',
+                             marker='o', s=50, alpha=0.8
+                             )
+            cbar1 = fig1.colorbar(p1, ax=ax1, shrink=0.5, pad=0.1)
+            cbar1.set_label('Residuals - ' + target_name)
+            ax1.set_xlabel('Grid Re', labelpad=7)
+            ax1.set_ylabel('Rossby Number')
+            ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
+            ax1.set_title('3D Scatter: ' + target_name)
             plt.show()
 
     # Track best model across all folds
