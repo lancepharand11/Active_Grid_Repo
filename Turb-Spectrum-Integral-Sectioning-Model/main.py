@@ -27,7 +27,7 @@ criterion = nn.MSELoss()
 
 # Load the saved model weights
 model_path = "./turb_spectrum_integral_section_model.pth"
-model.load_state_dict(torch.load(model_path))
+model.load_state_dict(torch.load(model_path,map_location=device))
 model.eval()  # Set the model to evaluation mode
 
 print("Model successfully loaded and ready for inference.")
