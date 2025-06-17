@@ -48,6 +48,7 @@ class Turbulence_Parameters:
         self.L_ux_non_dim = 0
         self.freq_non_dim = []
         self.E_u = []
+        self.__N_samples()
         # self.wavenums = []
         # self.freq_vals_psd = []
 
@@ -132,6 +133,10 @@ class Turbulence_Parameters:
 
     def get_integral_sections(self):
         return self.integral_sections
+    
+    def get_timestamps(self):
+        timeStamps = np.linspace(0,(self.N_samples - 1)/self.fs,self.N_samples)
+        return timeStamps
 
     # def get_wavenums(self):
     #     return self.wavenums
@@ -142,6 +147,9 @@ class Turbulence_Parameters:
     #########################################################################
     ## Private methods for the class
     #########################################################################
+    def __N_samples(self):
+        self.N_samples = self._u_velo.shape[0]
+    
     def __auto_corr_cutoff(self, data, overlap, mode):
         if np.asarray(data).ndim != 1:
             raise ValueError("Data must be 1-dimensional array")
@@ -174,6 +182,7 @@ class Turbulence_Parameters:
     #########################################################################
     def set_u_velo(self, new_u_velo):
         self._u_velo = new_u_velo
+        self.__N_samples()
 
     def calc_L_ux(self):
         num_lags, R_ux = self.__auto_corr_cutoff(data=self._u_velo_fluct, overlap=self.overlap, mode='normal')
