@@ -11,8 +11,11 @@
 import scipy.io
 import pandas as pd
 import numpy as np
+import sys
 import os
+sys.path.insert(0, os.path.abspath('../'))
 from Turbulence_Parameters_class import Turbulence_Parameters
+from pathlib import Path
 import joblib
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
@@ -23,7 +26,7 @@ import torch
 from scipy import stats
 import copy
 
-dataDir = "/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data/"
+dataDir = Path('F:\Lance\Active_Grid_Model_Data')
 counter = 0
 turb_objects = []
 Turbulence_Parameters.fs = 25600
@@ -31,23 +34,28 @@ Turbulence_Parameters.N_samples = 6144000
 Turbulence_Parameters.overlap = 0.5
 Turbulence_Parameters.mesh_length = 0.06096
 
-for file in os.listdir(dataDir):
+for file in list(dataDir.glob('*.mat')):
     if counter == 0:
-        time_stamps = scipy.io.loadmat((dataDir + file), variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
-        counter += 1
-
-    if file == ".DS_Store":
+        time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+    counter += 1
+    
+    file_uinfty = (float(file.stem.split("_")[1]))
+    Ro_string = file.stem.split("_")[3]
+    if Ro_string == '-':
         continue
-    name_full = os.path.basename(dataDir + file).split("/")[-1]
-    name = name_full.split(".mat")[0]
-    mat_u = scipy.io.loadmat((dataDir + file), variable_names=['u'], squeeze_me=True, mat_dtype=True)
-    mat_v = scipy.io.loadmat((dataDir + file), variable_names=['v'], squeeze_me=True, mat_dtype=True)
-    temp_turb_obj = Turbulence_Parameters(filename=name, u_velo=mat_u['u'], v_velo=mat_v['v'],
-                                          freestream_velo=float(name.split("_")[1]), Rossby_num=float(name.split("_")[3]),
-                                          shaft_speed_std_dev=float(name.split("_")[5]))
+    file_Ro = float(Ro_string)
+    file_shaftSpeedSTD = float(file.stem.split("_")[5])
+    
+    mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
+    mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
+    temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
+                                          freestream_velo=file_uinfty, Rossby_num=file_Ro,
+                                          shaft_speed_std_dev=file_shaftSpeedSTD)
     temp_turb_obj.calc_L_ux()
     temp_turb_obj.calc_turb_intensity()
     turb_objects.append(temp_turb_obj)
+    
+    print(f"Loading file {counter}")
 
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
                         "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
