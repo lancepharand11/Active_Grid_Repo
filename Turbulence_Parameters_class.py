@@ -15,8 +15,7 @@ import scipy.signal as signal
 
 class Turbulence_Parameters:
     # MUST BE SET by user
-    fs = 0
-    N_samples = 0
+    fs = 0 # Sampling frequency
     num_sections = 5  # Default number of sections for psd integration
     mesh_length = 0.06096  # [m] grid mesh length
 
@@ -44,8 +43,10 @@ class Turbulence_Parameters:
         self._u_velo_fluct = self._u_velo - np.mean(self._u_velo)
         self._v_velo_fluct = self._v_velo - np.mean(self._v_velo)
         self._grid_Re = self._freestream_velo * self.mesh_length / self.kinematicVisc_Air
-        self.turb_int = 0
-        self.L_ux_non_dim = 0
+        self.calc_turb_intensity()
+        self.calc_L_ux()
+        self.calc_anisotropy()
+        self.Re_lambda = 0
         self.freq_non_dim = []
         self.E_u = []
         self.__N_samples()
@@ -157,7 +158,7 @@ class Turbulence_Parameters:
         M_pperseg = -1  # Number of points in each segment or batch size
 
         auto_corr_vals = acf(data, nlags=(len(data) - 1), fft=True)
-        zero_crossings_index = np.where(np.diff(np.sign(auto_corr_vals)))[0] + 1
+        zero_crossings_index = np.where(np.diff(np.sign(auto_corr_vals)))[0] + 1 # Get first zero crossing
 
         if zero_crossings_index.size != 0:
             M_pperseg = zero_crossings_index[0]  # use first zero crossing index
@@ -183,16 +184,20 @@ class Turbulence_Parameters:
     def set_u_velo(self, new_u_velo):
         self._u_velo = new_u_velo
         self.__N_samples()
+        
+    def set_v_velo(self, new_v_velo):
+        if self._u_velo_fluct.size != self._v_velo_fluct.size:
+            raise ValueError("Velocity fluctuations must have the same length")
+        else:
+            self._v_velo = new_v_velo
 
     def calc_L_ux(self):
         num_lags, R_ux = self.__auto_corr_cutoff(data=self._u_velo_fluct, overlap=self.overlap, mode='normal')
         params, pcov = optimize.curve_fit(f=self.__exp_fit_auto_corr, xdata=range(num_lags), ydata=R_ux, p0=(0.5),
                                          check_finite=True)
         alpha_opt = params[0]
-        R_ux_fit = self.__exp_fit_auto_corr(range(num_lags), alpha=alpha_opt)
 
-        time_lags = np.linspace(0, num_lags, num_lags) * (1 / self.fs)
-        L_ux_fit = np.mean(self._u_velo) * integrate.trapezoid(y=R_ux_fit, x=time_lags)
+        L_ux_fit = np.mean(self._u_velo) * 1/alpha_opt
 
         self.L_ux_non_dim = (L_ux_fit / self.mesh_length)
         # print(f"Integral length scale based on correlation coeff: {L_ux_fit} [m]")
@@ -237,7 +242,7 @@ class Turbulence_Parameters:
         self.log_freq_non_dim = self.log_freq_non_dim[finite_mask]
 
         # More smoothing for PSD so np.gradient doesn't generate large outlier values
-        self.log_E_u = signal.medfilt(self.log_E_u, kernel_size=self.kernel_size)
+        # self.log_E_u = signal.medfilt(self.log_E_u, kernel_size=self.kernel_size)
 
         # More PSD attributes for NN
         self.dE_u_dfreq = np.gradient(self.log_E_u, self.log_freq_non_dim)
@@ -246,13 +251,21 @@ class Turbulence_Parameters:
 
         self.zero_freq = self.log_freq_non_dim[0]
         self.e_zero_freq = self.log_E_u[2]
-
-    def calc_turb_intensity(self):
+        
+    def __calc_q_var(self):
         u_temp_data = np.array(self._u_velo).T
         v_temp_data = np.array(self._v_velo).T
-        q_var = np.var(u_temp_data, axis=0) + (2 * np.var(v_temp_data, axis=0)) # assuming v^2 = w^2
+        q_var = np.var(u_temp_data, axis=0) + (2 * np.var(v_temp_data, axis=0))
+        return q_var
 
-        self.turb_int = np.sqrt(q_var) / (self._freestream_velo * math.sqrt(3))
+    def calc_turb_intensity(self):
+
+        self.turb_int = np.sqrt(self.__calc_q_var()) / (self._freestream_velo * math.sqrt(3))
+        
+    def calc_anisotropy(self):
+        u_temp_data = np.array(self._u_velo).T
+        v_temp_data = np.array(self._v_velo).T
+        self.anisotropy = np.std(u_temp_data)/np.std(v_temp_data)
 
     def psd_breakaway_freq_inertial(self):
         # NOTE: Slope threshold is lower bound here
@@ -291,3 +304,70 @@ class Turbulence_Parameters:
             areas.append(area)
 
         self.integral_sections = areas
+        
+    def calc_dissipation_rate(self):
+        timeStamps = self.get_timestamps()
+        dudt = np.gradient(self.get_u_velo_fluct(), timeStamps)
+        dvdt = np.gradient(self.get_v_velo_fluct(), timeStamps)
+        
+        uinfty = np.mean(self.get_u_velo())
+        
+        # Apply Taylor Hypothesis
+        dudx = dudt/uinfty
+        dvdx = dvdt/uinfty
+        
+        self.epsilon = 3*self.kinematicVisc_Air*(np.mean(dudx**2)+2*np.mean(dvdx**2))
+        
+    def calc_kolmogorov_length(self):
+        self.calc_dissipation_rate()
+        self.eta = self.kinematicVisc_Air**(3/4)/self.epsilon**(1/4)
+        
+    def filter_velo(self):
+        
+        # Store the unfiltered velocity
+        u_velo_unfiltered =  self.get_u_velo_fluct() 
+        v_velo_unfiltered =  self.get_v_velo_fluct() 
+        
+        # Initialise the cutoff frequency
+        cutoff_frequency = [0,1]
+        
+        # Iterate the filtering procedure until convergence of the cutoff frequency
+        while np.absolute(cutoff_frequency[-1]-cutoff_frequency[-2]) > 10**(-3):
+        
+            # Get Kolmogorov length and freestream velocity for calculating cutoff frequency
+            self.calc_kolmogorov_length()
+            uinfty = np.mean(self.get_u_velo())
+            
+            # Filter
+            # Design the Butterworth filter
+            order = 5
+            cutoff_frequency.append(uinfty/(2*np.pi*self.eta))  # Hz
+            
+            #print(f"Cutoff Frequency:{cutoff_frequency[-1]}")
+            
+            if cutoff_frequency[-1] < self.fs/2:
+            
+                b, a = signal.butter(order, cutoff_frequency[-1], btype='low', analog=False, fs=self.fs)
+            
+                # Filter the velocity fluctuations
+                u_velo_filtered = signal.filtfilt(b, a, u_velo_unfiltered)
+                v_velo_filtered = signal.filtfilt(b, a, v_velo_unfiltered)
+            
+                # Assign filtered velocity fluctuations
+                self._u_velo_fluct = u_velo_filtered
+                self._v_velo_fluct = v_velo_filtered
+                
+            else:
+                break
+            
+    def calc_taylor_length(self):
+        self.calc_dissipation_rate()
+        self.taylor_length = 5*self.kinematicVisc_Air*self.__calc_q_var()/self.eta
+        
+    def calc_Re_lambda(self):
+        self.calc_taylor_length()
+        self.Re_lambda = np.sqrt(self.__calc_q_var())*self.taylor_length/(3**(1/2)*self.kinematicVisc_Air)
+    
+        
+        
+            
