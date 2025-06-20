@@ -39,7 +39,6 @@ for file in list(dataDir.glob('*.mat')):
         time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
     counter += 1
     
-    file_uinfty = (float(file.stem.split("_")[1]))
     Ro_string = file.stem.split("_")[3]
     if Ro_string == '-':
         continue
@@ -49,8 +48,9 @@ for file in list(dataDir.glob('*.mat')):
     mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
     mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
     temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
-                                          freestream_velo=file_uinfty, Rossby_num=file_Ro,
+                                          freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
                                           shaft_speed_std_dev=file_shaftSpeedSTD)
+    temp_turb_obj.filter_velo()
     temp_turb_obj.calc_L_ux()
     temp_turb_obj.calc_turb_intensity()
     turb_objects.append(temp_turb_obj)

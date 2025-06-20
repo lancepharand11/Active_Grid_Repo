@@ -2,8 +2,6 @@ import scipy.io
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rcParams['text.usetex'] = True
-
 import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
@@ -29,6 +27,7 @@ Turbulence_Parameters.fs = 25600 #Hz
 ###################################################################
 ### Setup Figure
 ###################################################################
+plt.rcParams['text.usetex'] = True
 plt.ion()
 fig, (ax1, ax2) = plt.subplots(2,1)
 ax1.set_xlabel(r"$t$ [s]")

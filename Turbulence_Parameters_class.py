@@ -71,6 +71,9 @@ class Turbulence_Parameters:
     #########################################################################
     def get_trial_name(self):
         return self._trial_name
+    
+    def get_anisotropy(self):
+        return self.anisotropy
 
     def get_u_velo(self):
         return self._u_velo
@@ -95,6 +98,12 @@ class Turbulence_Parameters:
 
     def get_grid_Re(self):
         return self._grid_Re
+    
+    def get_Re_lambda(self):
+        return self.Re_lambda
+    
+    def get_epsilon(self):
+        return self.epsilon
 
     def get_turb_int(self):
         return self.turb_int
@@ -197,7 +206,7 @@ class Turbulence_Parameters:
                                          check_finite=True)
         alpha_opt = params[0]
 
-        L_ux_fit = np.mean(self._u_velo) * 1/alpha_opt
+        L_ux_fit = np.mean(self._u_velo) * 1/(alpha_opt*self.fs)
 
         self.L_ux_non_dim = (L_ux_fit / self.mesh_length)
         # print(f"Integral length scale based on correlation coeff: {L_ux_fit} [m]")
@@ -347,7 +356,7 @@ class Turbulence_Parameters:
             
             if cutoff_frequency[-1] < self.fs/2:
             
-                b, a = signal.butter(order, cutoff_frequency[-1], btype='low', analog=False, fs=self.fs)
+                b, a = signal.butter(order, cutoff_frequency[-1], btype='lowpass', analog=False, fs=self.fs)
             
                 # Filter the velocity fluctuations
                 u_velo_filtered = signal.filtfilt(b, a, u_velo_unfiltered)
@@ -360,9 +369,15 @@ class Turbulence_Parameters:
             else:
                 break
             
+        # Highpass
+        # sos = signal.butter(N=4, Wn=0.75, btype='high',fs=self.fs, output='sos')
+        
+        # self._u_velo_fluct = signal.sosfilt(sos, self._u_velo_fluct)
+        # self._v_velo_fluct = signal.sosfilt(sos, self._v_velo_fluct)
+            
     def calc_taylor_length(self):
         self.calc_dissipation_rate()
-        self.taylor_length = 5*self.kinematicVisc_Air*self.__calc_q_var()/self.eta
+        self.taylor_length = np.sqrt(5*self.kinematicVisc_Air*self.__calc_q_var()/self.epsilon)
         
     def calc_Re_lambda(self):
         self.calc_taylor_length()

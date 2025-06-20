@@ -18,6 +18,10 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
 
+from dataOverviewPlot import dataOverviewPlot
+
+# %%
+
 dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/")
 counter = 0
 turb_objects = []
@@ -47,11 +51,15 @@ for file in list(dataDir.glob('*.mat')):
     temp_turb_obj.calc_turb_psd_spectrum()
     temp_turb_obj.calc_L_ux()
     temp_turb_obj.calc_turb_intensity()
-    temp_turb_obj.psd_breakaway_freq_inertial()
-    temp_turb_obj.psd_breakaway_freq_dissip()
-    temp_turb_obj.psd_inertial_range_slope()
+    temp_turb_obj.calc_Re_lambda()
+    temp_turb_obj.calc_dissipation_rate()
+    # temp_turb_obj.psd_breakaway_freq_inertial()
+    # temp_turb_obj.psd_breakaway_freq_dissip()
+    # temp_turb_obj.psd_inertial_range_slope()
     temp_turb_obj.psd_integral_sectioning()
     turb_objects.append(temp_turb_obj)
+    
+    print(f"Loaded file {counter}")
 
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
                         "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
@@ -63,10 +71,28 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Freq * M / U [Non-Dim Freq]": (turb_obj.get_freq_non_dim().tolist() for turb_obj in turb_objects),
                         "Log(E_11 / (M * U))": (turb_obj.get_log_E_u() for turb_obj in turb_objects),
                         "Log(Freq * M / U)": (turb_obj.get_log_freq_non_dim() for turb_obj in turb_objects),
-                        "PSD Integral Sections": (turb_obj.get_integral_sections() for turb_obj in turb_objects)
+                        "Anisotropy": (turb_obj.get_anisotropy() for turb_obj in turb_objects),
+                        "Re_lambda": (turb_obj.get_Re_lambda() for turb_obj in turb_objects),
+                        "Epsilon": (turb_obj.get_epsilon() for turb_obj in turb_objects)
                         })
 
+IO_data_file_path = "./DataSummary.csv"
+IO_data.write_csv(IO_data_file_path)
 
+###################################################################
+# %% Scatter Plot of Dataset Matrix and Comparison with Previous Data
+###################################################################
+
+# Load the CSV file into a DataFrame
+IO_data = pd.read_csv(IO_data_file_path)
+
+dataOverviewFigure = dataOverviewPlot(IO_data)
+dataOverviewFigure_FileName = "../Figures/dataOverview.eps"
+dataOverviewFigure.savefig(dataOverviewFigure_FileName,format="eps")
+
+###################################################################
+# %% Model Input Data Statistics
+###################################################################
 col_labels = ["Integral section " + str(s) for s in range(Turbulence_Parameters.num_sections)]
 turb_sections = pd.DataFrame(IO_data.iloc[:, 10].to_list(), columns=col_labels)
 
@@ -87,7 +113,7 @@ stats.rename_axis(columns='Statistic', inplace=True)
 print(stats.to_markdown())
 
 ###################################################################
-## Preprocessing and Model Setup
+# %% Preprocessing and Model Setup
 ###################################################################
 from scipy import stats
 
@@ -107,7 +133,7 @@ X_filtered = XY_filtered.iloc[:, :X.shape[1]]
 Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
 
 #######################
-# 3D scatter plots
+# %% 3D scatter plots
 #######################
 x = X_filtered.iloc[:, 0].values  # Grid Re
 y = X_filtered.iloc[:, 1].values  # Rossby Number
@@ -142,16 +168,7 @@ ax2.set_title('3D Scatter: Integral Length Scale')
 plt.show()
 
 # #######################
-# # Scatter Plot of Dataset Matrix
-# #######################
-# import seaborn as sns
-#
-# sns.pairplot(XY_filtered)
-# plt.show()
-
-
-# #######################
-# # Correlation bar graph
+# %% Correlation bar graph
 # #######################
 # XY_corr = XY_filtered.corr()
 # x_cols = X_filtered.columns.tolist()
