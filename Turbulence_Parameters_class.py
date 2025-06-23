@@ -18,6 +18,9 @@ class Turbulence_Parameters:
     fs = 0 # Sampling frequency
     num_sections = 5  # Default number of sections for psd integration
     mesh_length = 0.06096  # [m] grid mesh length
+    alpha = 0.02869172 # Assumed calibration uncertainty parameter alpha (See Yavuzkurt 1985)
+    beta = 0.00360652  # Assumed calibration uncertainty parameter beta (See Yavuzkurt 1985)
+    k = 1 # Assumed pitch coefficient of hot-wire anemometer
 
     # This is for turb spectrum gen model
     # DEFAULT: Tuned based on the collected dataset.
@@ -107,6 +110,9 @@ class Turbulence_Parameters:
 
     def get_turb_int(self):
         return self.turb_int
+    
+    def get_turb_int_uncertainty(self):
+        return self.turb_int_uncertainty
 
     def get_L_ux_non_dim(self):
         return self.L_ux_non_dim
@@ -270,6 +276,24 @@ class Turbulence_Parameters:
     def calc_turb_intensity(self):
 
         self.turb_int = np.sqrt(self.__calc_q_var()) / (self._freestream_velo * math.sqrt(3))
+
+    def calc_turb_int_uncertainty(self):
+
+        # Calculate mean and RMS of U
+        u_rms = np.std(self._u_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
+        v_rms = np.std(self._v_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
+
+        # Relative approximation errors
+        rel_error_u_mean = self.k**2/2*(v_rms / self._freestream_velo)**2 # Only account for w component because we are using an x-wire
+        rel_error_u_rms = self.k**2/4*(v_rms**2 / (u_rms*self._freestream_velo)) # Only account for w component because we are using an x-wire
+
+        # Relative uncertainties (Δu_rms/u_rms and Δu_mean/u_mean)
+        rel_uncert_u_rms = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_mean  # Yavuzkurt: add instrument uncertainty and approximation error
+        rel_uncert_u_mean = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_rms
+
+         # Propagate uncertainty to Tu
+        rel_uncert_Tu = np.sqrt(rel_uncert_u_rms**2 + rel_uncert_u_mean**2).item()
+        self.turb_int_uncertainty = 2 * self.turb_int * rel_uncert_Tu  # 95% confidence
         
     def calc_anisotropy(self):
         u_temp_data = np.array(self._u_velo).T
