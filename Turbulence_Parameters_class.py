@@ -48,9 +48,6 @@ class Turbulence_Parameters:
         self._u_velo_fluct = self._u_velo - np.mean(self._u_velo)
         self._v_velo_fluct = self._v_velo - np.mean(self._v_velo)
         self._grid_Re = self._freestream_velo * self.mesh_length / self.kinematicVisc_Air
-        self.calc_turb_intensity()
-        self.calc_L_ux()
-        self.calc_anisotropy()
         self.Re_lambda = 0
         self.freq_non_dim = []
         self.E_u = []
@@ -202,9 +199,11 @@ class Turbulence_Parameters:
         corr = signal.correlate(x, x, mode='full') / (np.std(x) * np.std(x) * length)
         lags = np.arange(-length + 1, length)
         lags = lags / self.fs * self._freestream_velo / self.mesh_length
-
+        positiveLags = lags>=0
+        maxlag = 40
+        fitlags = np.logical_and(positiveLags,lags <= maxlag)
         try:
-            popt, _ = optimize.curve_fit(self.__exp_fit_auto_corr, lags[lags>=0], corr[lags>=0], bounds=([0], [np.inf]), p0=[1])
+            popt, _ = optimize.curve_fit(self.__exp_fit_auto_corr, lags[fitlags], corr[fitlags], bounds=([0], [np.inf]), p0=[1])
             a_fit = popt[0]
         except Exception:
             a_fit = np.nan
