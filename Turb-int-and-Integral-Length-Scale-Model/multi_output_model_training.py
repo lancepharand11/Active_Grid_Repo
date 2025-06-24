@@ -115,6 +115,8 @@ best_overall_rmse = np.inf
 best_overall_weights = None
 best_norm_rmse_turb_int = None
 best_norm_rmse_L_ux = None
+best_scaler_x = None
+best_scaler_y = None
 
 for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
     print(f"\nFold {fold + 1}")
@@ -141,8 +143,6 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
 
     best_rmse, best_epoch = np.inf, -1
     best_weights = None
-    best_scaler_x = None
-    best_scaler_y = None
 
     train_rmse_curve = []
     val_rmse_curve = []
