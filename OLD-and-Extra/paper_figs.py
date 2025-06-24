@@ -11,13 +11,13 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from Turbulence_Parameters_class import Turbulence_Parameters
 from torch.utils.data import DataLoader, TensorDataset
 import joblib
+
 import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
-
+from Turbulence_Parameters_class import Turbulence_Parameters
 from dataOverviewPlot import dataOverviewPlot
 
 # %%
@@ -34,7 +34,7 @@ Turbulence_Parameters.num_sections = 4
 for file in list(dataDir.glob('*.mat')):
     if counter == 0:
         time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
-        counter += 1
+    counter += 1
 
     Ro_string = file.stem.split("_")[3]
     if Ro_string == '-':
@@ -50,7 +50,9 @@ for file in list(dataDir.glob('*.mat')):
     temp_turb_obj.filter_velo()
     temp_turb_obj.calc_turb_psd_spectrum()
     temp_turb_obj.calc_L_ux()
+    temp_turb_obj.calc_L_ux_Uncertainty()
     temp_turb_obj.calc_turb_intensity()
+    temp_turb_obj.calc_turb_int_uncertainty()
     temp_turb_obj.calc_Re_lambda()
     temp_turb_obj.calc_dissipation_rate()
     # temp_turb_obj.psd_breakaway_freq_inertial()
@@ -66,7 +68,9 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
                         "Shaft Speed Standard Deviation * M / u_inf": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
                         "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+                        "Turbulence Intensity Uncertainty": (turb_obj.get_turb_int_uncertainty() for turb_obj in turb_objects),
                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                        "L_ux Uncertainty": (turb_obj.get_L_ux_uncertainty() for turb_obj in turb_objects),
                         "E_11 / (M * U) [Non-Dim PSD]": (turb_obj.get_E_u().tolist() for turb_obj in turb_objects),
                         "Freq * M / U [Non-Dim Freq]": (turb_obj.get_freq_non_dim().tolist() for turb_obj in turb_objects),
                         "Log(E_11 / (M * U))": (turb_obj.get_log_E_u() for turb_obj in turb_objects),
@@ -77,7 +81,12 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         })
 
 IO_data_file_path = "./DataSummary.csv"
-IO_data.write_csv(IO_data_file_path)
+IO_data_to_save = IO_data[["Trial Name", "Grid Re", "Rossby Number",
+                 "Shaft Speed Standard Deviation * M / u_inf", "Turbulence Intensity",
+                 "Turbulence Intensity Uncertainty", "L_ux / M", "L_ux Uncertainty","Anisotropy",
+                 "Re_lambda", "Epsilon"]]
+# Save the DataFrame to a CSV file
+IO_data_to_save.to_csv(IO_data_file_path)
 
 ###################################################################
 # %% Scatter Plot of Dataset Matrix and Comparison with Previous Data

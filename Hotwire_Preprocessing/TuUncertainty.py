@@ -41,7 +41,7 @@ for TuID, dataFile in enumerate(TurbulenceCases):
     HW1Poly_Coeffs = np.polyfit(HW1Voltage, referenceVelocity, 4)
     HW2Poly_Coeffs = np.polyfit(HW2Voltage, referenceVelocity, 4)
 
-    rho = pBar * 133.32 / (R * (T + 273.15))
+    rho = pBar * 1333.2 / (R * (T + 273.15))
     referenceP = 0.5 * rho * np.mean(u) ** 2
 
     # Uncertainty calculations (Yavuzkurt methodology)
