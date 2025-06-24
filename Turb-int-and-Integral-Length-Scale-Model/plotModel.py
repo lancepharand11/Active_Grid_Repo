@@ -32,7 +32,7 @@ Tu, L_ux = NNModel.evaluate(Re_M, Ro, sigma)
 # Contour Plots
 fig, axs = plt.subplots(2,1)
 
-TuContour = axs[0].contourf(Re_M, Ro, Tu,10)
+TuContour = axs[0].contourf(Re_M, Ro, Tu, 10)
 axs[0].set_xlabel(r"$\textrm{Re}_M$")
 axs[0].set_ylabel(r"$\textrm{Ro}$")
 fig.colorbar(TuContour, ax=axs[0], label=r"$Tu$")

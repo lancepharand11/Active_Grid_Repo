@@ -9,6 +9,8 @@ import numpy as np
 import math
 from scipy import integrate
 from scipy import optimize
+from scipy import signal
+from scipy import stats
 from statsmodels.tsa.stattools import acf
 import scipy.signal as signal
 
@@ -18,6 +20,9 @@ class Turbulence_Parameters:
     fs = 0 # Sampling frequency
     num_sections = 5  # Default number of sections for psd integration
     mesh_length = 0.06096  # [m] grid mesh length
+    alpha = 0.00332509 # Assumed calibration uncertainty parameter alpha (See Yavuzkurt 1985)
+    beta = 0.00360652  # Assumed calibration uncertainty parameter beta (See Yavuzkurt 1985)
+    k = 1 # Assumed pitch coefficient of hot-wire anemometer
 
     # This is for turb spectrum gen model
     # DEFAULT: Tuned based on the collected dataset.
@@ -107,9 +112,15 @@ class Turbulence_Parameters:
 
     def get_turb_int(self):
         return self.turb_int
+    
+    def get_turb_int_uncertainty(self):
+        return self.turb_int_uncertainty
 
     def get_L_ux_non_dim(self):
         return self.L_ux_non_dim
+    
+    def get_L_ux_uncertainty(self):
+        return self.L_ux_uncertainty
 
     def get_freq_non_dim(self):
         return self.freq_non_dim
@@ -186,6 +197,21 @@ class Turbulence_Parameters:
 
     def __exp_fit_auto_corr(self, x, alpha):
         return np.exp(-alpha * x)
+    
+    def __Lux(self,x,length):
+        corr = signal.correlate(x, x, mode='full') / (np.std(x) * np.std(x) * length)
+        lags = np.arange(-length + 1, length)
+        lags = lags / self.fs * self._freestream_velo / self.mesh_length
+
+        try:
+            popt, _ = optimize.curve_fit(self.__exp_fit_auto_corr, lags[lags>=0], corr[lags>=0], bounds=([0], [np.inf]), p0=[1])
+            a_fit = popt[0]
+        except Exception:
+            a_fit = np.nan
+
+        Lux = (1/a_fit if a_fit != 0 else np.nan)
+        
+        return Lux
 
     #########################################################################
     ## Mutator methods
@@ -201,15 +227,23 @@ class Turbulence_Parameters:
             self._v_velo = new_v_velo
 
     def calc_L_ux(self):
-        num_lags, R_ux = self.__auto_corr_cutoff(data=self._u_velo_fluct, overlap=self.overlap, mode='normal')
-        params, pcov = optimize.curve_fit(f=self.__exp_fit_auto_corr, xdata=range(num_lags), ydata=R_ux, p0=(0.5),
-                                         check_finite=True)
-        alpha_opt = params[0]
+        self.L_ux_non_dim = self.__Lux(self._u_velo_fluct, self.N_samples)
+        
+    def calc_L_ux_Uncertainty(self):
+        # Bootstrap(-like) method on 5 shorter segments
+        NSegments = 5
+        SegmentLength = self.N_samples // NSegments
+        
+        LuxExpFit = np.zeros(NSegments)
 
-        L_ux_fit = np.mean(self._u_velo) * 1/(alpha_opt*self.fs)
+        for segment in range(NSegments):
+            startID = segment * SegmentLength
+            endID = startID + SegmentLength
+            seg_u = self._u_velo_fluct[startID:endID]
 
-        self.L_ux_non_dim = (L_ux_fit / self.mesh_length)
-        # print(f"Integral length scale based on correlation coeff: {L_ux_fit} [m]")
+            LuxExpFit[segment] = self.__Lux(seg_u, SegmentLength)
+        
+        self.L_ux_uncertainty = stats.t.ppf(0.975, NSegments-1) * np.nanstd(LuxExpFit) / np.sqrt(NSegments)
 
     def calc_turb_psd_spectrum(self):
         if self._u_velo_fluct.size != self._v_velo_fluct.size:
@@ -270,6 +304,24 @@ class Turbulence_Parameters:
     def calc_turb_intensity(self):
 
         self.turb_int = np.sqrt(self.__calc_q_var()) / (self._freestream_velo * math.sqrt(3))
+
+    def calc_turb_int_uncertainty(self):
+
+        # Calculate mean and RMS of U
+        u_rms = np.std(self._u_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
+        v_rms = np.std(self._v_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
+
+        # Relative approximation errors
+        rel_error_u_mean = self.k**2/2*(v_rms / self._freestream_velo)**2 # Only account for w component because we are using an x-wire
+        rel_error_u_rms = self.k**2/4*(v_rms**2 / (u_rms*self._freestream_velo)) # Only account for w component because we are using an x-wire
+
+        # Relative uncertainties (Δu_rms/u_rms and Δu_mean/u_mean)
+        rel_uncert_u_rms = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_mean  # Yavuzkurt: add instrument uncertainty and approximation error
+        rel_uncert_u_mean = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_rms
+
+         # Propagate uncertainty to Tu
+        rel_uncert_Tu = np.sqrt(rel_uncert_u_rms**2 + rel_uncert_u_mean**2).item()
+        self.turb_int_uncertainty = 2 * self.turb_int * rel_uncert_Tu  # 95% confidence
         
     def calc_anisotropy(self):
         u_temp_data = np.array(self._u_velo).T
