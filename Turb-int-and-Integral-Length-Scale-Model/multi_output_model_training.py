@@ -253,6 +253,7 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
     # Track best model across all folds
     if best_rmse < best_overall_rmse:
         best_overall_rmse = best_rmse
+        best_overall_train_idx, best_overall_val_idx = train_idx, val_idx
         best_norm_rmse_turb_int = norm_rmse_turb_int
         best_norm_rmse_L_ux = norm_rmse_L_ux
         best_overall_weights = copy.deepcopy(best_weights)
@@ -270,6 +271,8 @@ out_dir = "Models_and_Results"
 os.makedirs(out_dir, exist_ok=True)
 
 model_fname = os.path.join(out_dir, f"best_model_{unique_id}.pth")
+train_idx_fname = os.path.join(out_dir, f"train_idx_{unique_id}.csv")
+val_idx_fname = os.path.join(out_dir, f"val_idx_{unique_id}.csv")
 scaler_x_fname = os.path.join(out_dir, f"scaler_x_{unique_id}.pkl")
 scaler_y_fname = os.path.join(out_dir, f"scaler_y_{unique_id}.pkl")
 log_fname = os.path.join(out_dir, "rmse_results.txt")
@@ -278,9 +281,16 @@ torch.save(best_overall_weights, model_fname)
 joblib.dump(best_scaler_x, scaler_x_fname)
 joblib.dump(best_scaler_y, scaler_y_fname)
 
+
+np.savetxt(train_idx_fname, best_overall_train_idx, delimiter=",", fmt="%f")
+np.savetxt(val_idx_fname, best_overall_val_idx, delimiter=",", fmt="%f")
+
 print(f"\nSaved best model weights to: {model_fname}")
 print(f"Saved input scaler to: {scaler_x_fname}")
 print(f"Saved output scaler to: {scaler_y_fname}")
+
+print(f"Saved training data indices to: {train_idx_fname}")
+print(f"Saved validation data indices to: {val_idx_fname}")
 
 # Log results
 log_line = (f"{unique_id}\t"
