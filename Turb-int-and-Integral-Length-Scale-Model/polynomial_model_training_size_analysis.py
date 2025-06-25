@@ -306,3 +306,9 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
 fig, ax = plt.subplots(1,1)
 ax.plot(train_data_size,overall_rel_rmse_turb_int)
 ax.plot(train_data_size,overall_norm_rmse_Lux)
+
+training_size_data = pd.DataFrame({"Size of Training Data": train_data_size,
+                                   "Tu RMS Relative Error": overall_rel_rmse_turb_int,
+                                   "L_ux RMS Relative Error": overall_norm_rmse_Lux})
+
+training_size_data.to_csv("./Training Data Size Analysis Results/Polynomial.csv")

@@ -106,7 +106,7 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 
 min_train_fraction = 0.2
 max_train_fraction = 0.90
-n_steps = 7
+n_steps = 14
 overall_fraction_acceptable = np.zeros(n_steps)
 overall_rel_rmse_turb_int = np.zeros(n_steps)
 overall_norm_rmse_Lux = np.zeros(n_steps)
@@ -114,7 +114,7 @@ train_data_size = np.zeros(n_steps)
 
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
-    n_models = 5
+    n_models = 10
     SS = ShuffleSplit(n_splits=n_models, train_size=train_fraction, random_state=0)  # NOTE: no seed used
     input_size, output_size = X_all.shape[1], Y_all.shape[1]
     hidden_size = 64
@@ -350,3 +350,9 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
 fig, ax = plt.subplots(1,1)
 ax.plot(train_data_size,overall_rel_rmse_turb_int)
 ax.plot(train_data_size,overall_norm_rmse_Lux)
+
+training_size_data = pd.DataFrame({"Size of Training Data": train_data_size,
+                                   "Tu RMS Relative Error": overall_rel_rmse_turb_int,
+                                   "L_ux RMS Relative Error": overall_norm_rmse_Lux})
+
+training_size_data.to_csv("./Training Data Size Analysis Results/Neural Network.csv")

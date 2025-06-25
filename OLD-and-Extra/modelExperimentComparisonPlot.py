@@ -13,14 +13,14 @@ plt.rcParams['text.usetex'] = True
 import sys
 import os
 sys.path.insert(0, os.path.abspath('../Turb-int-and-Integral-Length-Scale-Model'))
-from IntensityLengthPolynomialModelClass import IntensityLengthModel
+from IntensityLengthModelClass import IntensityLengthModel
 
 # Load the CSV file into a DataFrame
 IO_data_file_path = "./DataSummary.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 # %% Load the Model
-modelID = "20250624_152826"
+modelID = "20250518_113100"
 modelPath = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_{modelID}.pth"
 # Load the scalers
 scaler1Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_{modelID}.pkl"
@@ -30,8 +30,8 @@ Model = IntensityLengthModel(modelPath, scaler1Path, scaler2Path)
 
 # %% Load the Indices of the validation set
 
-val_idx = np.loadtxt(f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/val_idx_{modelID}.csv", delimiter=',')
-train_idx = np.loadtxt(f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/train_idx_{modelID}.csv", delimiter=',')
+# val_idx = np.loadtxt(f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/val_idx_{modelID}.csv", delimiter=',')
+# train_idx = np.loadtxt(f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/train_idx_{modelID}.csv", delimiter=',')
 
 # Evaluate the model for Re_M = 20000
 Ro_Re_M_Const_20000 = np.linspace(5, 75, num=100)
@@ -79,12 +79,12 @@ Tu_Ro_Const_40, L_ux_Ro_Const_40 = Model.evaluate(Re_M_Ro_Const_40, Ro_Ro_Const_
 shaft_speed_product = IO_data["Shaft Speed Standard Deviation * M / u_inf"] * IO_data["Grid Re"]
 
 # Boolean masks for selecting data based on conditions
-constant_re_30000 = (IO_data["Grid Re"].iloc[val_idx] > 25000) & (IO_data["Grid Re"].iloc[val_idx] < 35000)
-constant_re_40000 = (IO_data["Grid Re"].iloc[val_idx] > 35000) & (IO_data["Grid Re"].iloc[val_idx] < 45000)
-constant_re_20000 = (IO_data["Grid Re"].iloc[val_idx] > 15000) & (IO_data["Grid Re"].iloc[val_idx] < 25000)
-constant_ro_15 = (IO_data["Rossby Number"].iloc[val_idx] == 15)
-constant_ro_25 = (IO_data["Rossby Number"].iloc[val_idx] == 25)
-constant_ro_40 = (IO_data["Rossby Number"].iloc[val_idx] == 40)
+constant_re_30000 = (IO_data["Grid Re"] > 25000) & (IO_data["Grid Re"] < 35000)
+constant_re_40000 = (IO_data["Grid Re"] > 35000) & (IO_data["Grid Re"] < 45000)
+constant_re_20000 = (IO_data["Grid Re"] > 15000) & (IO_data["Grid Re"] < 25000)
+constant_ro_15 = (IO_data["Rossby Number"] == 15)
+constant_ro_25 = (IO_data["Rossby Number"] == 25)
+constant_ro_40 = (IO_data["Rossby Number"] == 40)
 constant_sigma_200 = (shaft_speed_product > 100) & (shaft_speed_product < 300)
 
 # For Re_M = 30000
