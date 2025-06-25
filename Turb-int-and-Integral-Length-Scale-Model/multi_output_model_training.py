@@ -94,7 +94,7 @@ Y_Uncertainty = IO_data.iloc[:, 6:8]
 X_all = torch.tensor(X.values, dtype=torch.float32)
 Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
-## K-Fold CV Setup
+## Shuffle-Split CV Setup
 ###################################################################
 n_models = 10
 kf = ShuffleSplit(n_splits=n_models, test_size=0.90, random_state=0)  # NOTE: no seed used
