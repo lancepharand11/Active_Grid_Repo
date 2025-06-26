@@ -19,8 +19,8 @@ NNData = pd.read_csv("../Turb-int-and-Integral-Length-Scale-Model/Training Data 
 
 # %% Plot
 fig, ax = plt.subplots(1, 1, figsize=(6.375, 6.375*2/3))
-ax.plot(PolynomialData["Size of Training Data"],PolynomialData["Tu RMS Relative Error"], linestyle="--", color="k", label="$Tu$ Polynomial")
-ax.plot(PolynomialData["Size of Training Data"],PolynomialData["L_ux RMS Relative Error"], linestyle="--", color="b", label="$L_{ux}$ Polynomial")
+ax.plot(PolynomialData["Size of Training Data"],PolynomialData["Tu RMS Relative Error"], linestyle="--", color="k", label=r"$Tu$ $5^{\textrm{th}}$-Order Polynomial")
+ax.plot(PolynomialData["Size of Training Data"],PolynomialData["L_ux RMS Relative Error"], linestyle="--", color="b", label=r"$L_{ux}$ $5^{\textrm{th}}$-Order Polynomial")
 
 ax.plot(NNData["Size of Training Data"],NNData["Tu RMS Relative Error"], linestyle="-", color="k", label="$Tu$ Neural Network")
 ax.plot(NNData["Size of Training Data"],NNData["L_ux RMS Relative Error"], linestyle="-", color="b", label="$L_{ux}$ Neural Network")

@@ -16,7 +16,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
 from Turbulence_Parameters_class import Turbulence_Parameters
-from train_nn_kfold import train_nn_kfold
+from train_polynomial_model import train_polynomial_model
 from pathlib import Path
 import joblib
 import torch
@@ -92,8 +92,7 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 ## Training Setup
 ###################################################################
-n_folds = 10
-
+polynomial_order = 10
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 64
 num_epochs = 1000
@@ -103,16 +102,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.b
 
 
 # Train the model on the data from the experiment
-(best_overall_weights, best_scaler_x, best_scaler_y,
-        best_overall_train_idx, best_overall_val_idx,
-        best_overall_rmse, best_norm_rmse_turb_int, 
-        best_norm_rmse_L_ux, fold_results, model) = train_nn_kfold(X_all, Y_all,
-                   k_folds=n_folds, hidden_size=hidden_size,
-                   num_epochs=num_epochs, learning_rate=learning_rate,
-                   batch_size=batch_size, device=device, plot=True)
+model, scaler_x, scaler_y, train_rmse = train_polynomial_model(X_all, Y_all, polynomial_order, device)
 
 ###################################################################
-## Save Best Model
+## Save Model
 ###################################################################
 from datetime import datetime
 unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -127,31 +120,25 @@ scaler_x_fname = os.path.join(out_dir, f"scaler_x_{unique_id}.pkl")
 scaler_y_fname = os.path.join(out_dir, f"scaler_y_{unique_id}.pkl")
 log_fname = os.path.join(out_dir, "rmse_results.txt")
 
-torch.save(best_overall_weights, model_fname)
-joblib.dump(best_scaler_x, scaler_x_fname)
-joblib.dump(best_scaler_y, scaler_y_fname)
+joblib.dump(model, model_fname)
+joblib.dump(scaler_x, scaler_x_fname)
+joblib.dump(scaler_y, scaler_y_fname)
 
 
-np.savetxt(train_idx_fname, best_overall_train_idx, delimiter=",", fmt="%f")
-np.savetxt(val_idx_fname, best_overall_val_idx, delimiter=",", fmt="%f")
-
-print(f"\nSaved best model weights to: {model_fname}")
+print(f"\nSaved model to: {model_fname}")
 print(f"Saved input scaler to: {scaler_x_fname}")
 print(f"Saved output scaler to: {scaler_y_fname}")
 
-print(f"Saved training data indices to: {train_idx_fname}")
-print(f"Saved validation data indices to: {val_idx_fname}")
+# # Log results
+# log_line = (f"{unique_id}\t"
+#             f"{os.path.basename(model_fname)}\t"
+#             f"{best_overall_rmse:.4f}\t"
+#             f"{best_norm_rmse_turb_int:.4f}\t"
+#             f"{best_norm_rmse_L_ux:.4f}\n"
+#             )
 
-# Log results
-log_line = (f"{unique_id}\t"
-            f"{os.path.basename(model_fname)}\t"
-            f"{best_overall_rmse:.4f}\t"
-            f"{best_norm_rmse_turb_int:.4f}\t"
-            f"{best_norm_rmse_L_ux:.4f}\n"
-            )
+# with open(log_fname, "a") as f:
+#     f.write(log_line)
 
-with open(log_fname, "a") as f:
-    f.write(log_line)
-
-print(f"Appended results to {log_fname}")
-print(1)
+# print(f"Appended results to {log_fname}")
+# print(1)

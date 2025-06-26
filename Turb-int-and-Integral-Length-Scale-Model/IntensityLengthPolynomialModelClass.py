@@ -17,7 +17,7 @@ class IntensityLengthModel:
         ## Load Trained Model and Scalers
         ###################################################################
         
-        self.model = torch.load(modelPath)
+        self.model = joblib.load(modelPath)
         
         print("Model successfully loaded and ready for inference.")
         
