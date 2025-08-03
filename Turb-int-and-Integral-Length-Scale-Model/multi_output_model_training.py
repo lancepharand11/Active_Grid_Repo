@@ -13,26 +13,31 @@ import pandas as pd
 import numpy as np
 import sys
 import os
-sys.path.insert(0, os.path.abspath('../'))
+# sys.path.insert(0, os.path.abspath('../'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
 from Turbulence_Parameters_class import Turbulence_Parameters
 from pathlib import Path
 import joblib
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from torch import nn, optim
 import torch
 from scipy import stats
 import copy
 
-dataDir = Path('F:\Lance\Active_Grid_Model_Data')
+# dataDir = Path('F:\Lance\Active_Grid_Model_Data')
+dataDir = Path('/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data')
+script_dir = Path(__file__).parent
 counter = 0
 turb_objects = []
 Turbulence_Parameters.fs = 25600
 Turbulence_Parameters.N_samples = 6144000
 Turbulence_Parameters.overlap = 0.5
 Turbulence_Parameters.mesh_length = 0.06096
+seed = 42
 
 for file in list(dataDir.glob('*.mat')):
     if counter == 0:
@@ -87,6 +92,7 @@ Y_all = torch.tensor(Y_filtered.values, dtype=torch.float32)
 ###################################################################
 k_folds = 5
 kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
+X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
 
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 64
@@ -118,15 +124,17 @@ best_norm_rmse_L_ux = None
 best_scaler_x = None
 best_scaler_y = None
 
-for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
+for fold, (train_idx, val_idx) in enumerate(kf.split(X_train)):
     print(f"\nFold {fold + 1}")
     scaler_x = MinMaxScaler(feature_range=(-1, 1))
     scaler_y = MinMaxScaler(feature_range=(-1, 1))
 
-    x_train = scaler_x.fit_transform(X_all[train_idx])
-    y_train = scaler_y.fit_transform(Y_all[train_idx])
-    x_val = scaler_x.transform(X_all[val_idx])
-    y_val = scaler_y.transform(Y_all[val_idx])
+    x_train = scaler_x.fit_transform(X_train[train_idx])
+    y_train = scaler_y.fit_transform(Y_train[train_idx])
+
+    # NOTE: this is being used as a validation set even though var name is train
+    x_val = scaler_x.transform(X_train[val_idx])  
+    y_val = scaler_y.transform(Y_train[val_idx])
 
     x_train = torch.tensor(x_train, dtype=torch.float32).to(device)
     y_train = torch.tensor(y_train, dtype=torch.float32).to(device)
@@ -177,7 +185,7 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
                 best_rmse = val_rmse
                 best_epoch = epoch
                 best_weights = copy.deepcopy(model.state_dict())
-
+    
     print(f"Best Epoch: {best_epoch}, Best RMSE (unscaled): {best_rmse:.4f}")
     fold_results.append(best_rmse)
 
@@ -250,8 +258,8 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
             ax1.set_title('3D Scatter: ' + target_name)
             plt.show()
 
-    # Track best model across all folds
-    if best_rmse < best_overall_rmse:
+    # Track best model across all folds on the validation fold
+    if best_rmse < best_overall_rmse: 
         best_overall_rmse = best_rmse
         best_overall_train_idx, best_overall_val_idx = train_idx, val_idx
         best_norm_rmse_turb_int = norm_rmse_turb_int
@@ -260,6 +268,18 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
         best_scaler_x = copy.deepcopy(scaler_x)
         best_scaler_y = copy.deepcopy(scaler_y)
 
+    final_model = get_model()
+    final_model.load_state_dict(best_overall_weights)
+    final_model.eval()
+    with torch.no_grad():
+        x_test_scaled = best_scaler_x.transform(X_test.numpy())
+        x_test_tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(device)
+        y_test_pred = final_model(x_test_tensor)
+        y_test_pred_unsc = torch.tensor(best_scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
+        y_test_unsc = torch.tensor(Y_test.numpy())
+        test_rmse = torch.sqrt(mse_crit(y_test_pred_unsc, y_test_unsc)).item()
+    print(f"Test set RMSE: {test_rmse:.4f}")
+
 
 ###################################################################
 ## Save Best Model
@@ -267,8 +287,8 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X_all)):
 from datetime import datetime
 unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-out_dir = "Models_and_Results"
-os.makedirs(out_dir, exist_ok=True)
+out_dir = script_dir / "Models_and_Results"
+out_dir.mkdir(exist_ok=True)
 
 model_fname = os.path.join(out_dir, f"best_model_{unique_id}.pth")
 train_idx_fname = os.path.join(out_dir, f"train_idx_{unique_id}.csv")
@@ -295,7 +315,8 @@ print(f"Saved validation data indices to: {val_idx_fname}")
 # Log results
 log_line = (f"{unique_id}\t"
             f"{os.path.basename(model_fname)}\t"
-            f"{best_overall_rmse:.4f}\t"
+            f"{test_rmse:.4f}\t"  # on the test set
+            f"{best_overall_rmse:.4f}\t"  # the below rmse are on the validation set 
             f"{best_norm_rmse_turb_int:.4f}\t"
             f"{best_norm_rmse_L_ux:.4f}\n"
             )
