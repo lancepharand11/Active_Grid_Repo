@@ -19,10 +19,11 @@ import os
 sys.path.insert(0, os.path.abspath('../'))
 from Turbulence_Parameters_class import Turbulence_Parameters
 from dataOverviewPlot import dataOverviewPlot
+from shaftSpeedStdPlot import shaftSpeedStdPlot
 
 # %%
 
-dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/")
+dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/Selected Data/")
 counter = 0
 turb_objects = []
 Turbulence_Parameters.fs = 25600 #Hz
@@ -55,13 +56,14 @@ for file in list(dataDir.glob('*.mat')):
     temp_turb_obj.calc_turb_int_uncertainty()
     temp_turb_obj.calc_Re_lambda()
     temp_turb_obj.calc_dissipation_rate()
+    temp_turb_obj.calc_anisotropy()
     # temp_turb_obj.psd_breakaway_freq_inertial()
     # temp_turb_obj.psd_breakaway_freq_dissip()
     # temp_turb_obj.psd_inertial_range_slope()
     temp_turb_obj.psd_integral_sectioning()
     turb_objects.append(temp_turb_obj)
     
-    print(f"Loaded file {counter}")
+    print(f"Loaded file {counter}: {file.stem}")
 
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
                         "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
@@ -80,7 +82,7 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Epsilon": (turb_obj.get_epsilon() for turb_obj in turb_objects)
                         })
 
-IO_data_file_path = "./DataSummary.csv"
+IO_data_file_path = "./DataSummaryOutliersRemoved.csv"
 IO_data_to_save = IO_data[["Trial Name", "Grid Re", "Rossby Number",
                  "Shaft Speed Standard Deviation * M / u_inf", "Turbulence Intensity",
                  "Turbulence Intensity Uncertainty", "L_ux / M", "L_ux Uncertainty","Anisotropy",
@@ -95,9 +97,19 @@ IO_data_to_save.to_csv(IO_data_file_path)
 # Load the CSV file into a DataFrame
 IO_data = pd.read_csv(IO_data_file_path)
 
-dataOverviewFigure = dataOverviewPlot(IO_data)
+dataComparisonFigure, dataOverviewFigure = dataOverviewPlot(IO_data)
+dataComparisonFigure_FileName = "../Figures/dataComparison.eps"
 dataOverviewFigure_FileName = "../Figures/dataOverview.eps"
 dataOverviewFigure.savefig(dataOverviewFigure_FileName,format="eps")
+dataComparisonFigure.savefig(dataComparisonFigure_FileName,format="eps")
+
+###################################################################
+# %% Effect of Shaft Speed Standard Deviation
+###################################################################
+
+shaftSpeedStdFigure = shaftSpeedStdPlot(IO_data_to_save)
+shaftSpeedStdFigure_FileName = "../Figures/shaftSpeedStd.eps"
+shaftSpeedStdFigure.savefig(shaftSpeedStdFigure_FileName,format="eps")
 
 ###################################################################
 # %% Model Input Data Statistics
