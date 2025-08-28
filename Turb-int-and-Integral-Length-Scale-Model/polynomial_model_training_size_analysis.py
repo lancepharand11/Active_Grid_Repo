@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 24 14:05:25 2025
-
-@author: Connor
-"""
-
 # Multi Output Neural Network Model for Active Grid
 # Author: Lance Pharand, 2025
 # NOTEs:

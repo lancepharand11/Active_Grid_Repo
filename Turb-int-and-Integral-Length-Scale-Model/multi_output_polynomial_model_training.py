@@ -92,7 +92,7 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 ## Training Setup
 ###################################################################
-polynomial_order = 10
+polynomial_order = 5
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 64
 num_epochs = 1000

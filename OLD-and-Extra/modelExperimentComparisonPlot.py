@@ -20,7 +20,7 @@ IO_data_file_path = "./DataSummary.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 # %% Load the Model
-modelID = "20250518_113100"
+modelID = "20250708_085121"
 modelPath = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_{modelID}.pth"
 # Load the scalers
 scaler1Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_{modelID}.pkl"
