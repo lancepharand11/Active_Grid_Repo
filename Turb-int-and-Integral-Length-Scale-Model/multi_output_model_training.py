@@ -9,6 +9,7 @@
 ## Initializations and Data Loading
 ###################################################################
 import scipy.io
+import scipy.stats as stats
 import pandas as pd
 import numpy as np
 import sys
@@ -17,6 +18,7 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 from Turbulence_Parameters_class import Turbulence_Parameters
+from train_nn_kfold import train_nn_kfold
 from pathlib import Path
 import joblib
 from torch.utils.data import DataLoader, TensorDataset
@@ -25,8 +27,6 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from torch import nn, optim
 import torch
-from scipy import stats
-import copy
 
 # dataDir = Path('F:\Lance\Active_Grid_Model_Data')
 dataDir = Path('/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data')
@@ -41,56 +41,68 @@ seed = 42
 
 for file in list(dataDir.glob('*.mat')):
     if counter == 0:
-        time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+     time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
     counter += 1
-    
+
     Ro_string = file.stem.split("_")[3]
     if Ro_string == '-':
-        continue
+     continue
     file_Ro = float(Ro_string)
     file_shaftSpeedSTD = float(file.stem.split("_")[5])
-    
+
     mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
     mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
     temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
-                                          freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
-                                          shaft_speed_std_dev=file_shaftSpeedSTD)
+                                       freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
+                                       shaft_speed_std_dev=file_shaftSpeedSTD)
     temp_turb_obj.filter_velo()
     temp_turb_obj.calc_L_ux()
     temp_turb_obj.calc_turb_intensity()
     turb_objects.append(temp_turb_obj)
-    
+
     print(f"Loading file {counter}")
 
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
-                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
-                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
-                        "Shaft Speed Standard Deviation * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
-                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
-                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
-                        })
+                       "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
+                       "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
+                       "Shaft Speed Standard Deviation * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
+                       "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+                       "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+                       })
+
+# IO_data_file_path = "../OLD-and-Extra/DataSummary.csv"
+# IO_data = pd.read_csv(IO_data_file_path)
+
+# IO_data = IO_data[["Trial Name",
+#                    "Grid Re",
+#                    "Rossby Number",
+#                    "Shaft Speed Standard Deviation * M / u_inf",
+#                    "Turbulence Intensity",
+#                    "L_ux / M",
+#                    "Turbulence Intensity Uncertainty",
+#                    "L_ux Uncertainty"]]
 
 ###################################################################
 ## Preprocessing
 ###################################################################
 X = IO_data.iloc[:, 1:4]
 Y = IO_data.iloc[:, 4:6]
-XY = pd.concat([X, Y], axis=1)
-z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
-threshold = 3  # Threshold z-score
-rows_with_outlier = (z_scores > threshold).any(axis=1)
-XY_filtered = XY[~rows_with_outlier]
+Y_Uncertainty = IO_data.iloc[:, 6:8]
+# XY = pd.concat([X, Y], axis=1)
+# z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
+# threshold = 3  # Threshold z-score
+# rows_with_outlier = (z_scores > threshold).any(axis=1)
+# XY_filtered = XY[~rows_with_outlier]
 
-X_filtered = XY_filtered.iloc[:, :X.shape[1]]
-Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
+# X_filtered = XY_filtered.iloc[:, :X.shape[1]]
+# Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
 
-X_all = torch.tensor(X_filtered.values, dtype=torch.float32)
-Y_all = torch.tensor(Y_filtered.values, dtype=torch.float32)
-
+X_all = torch.tensor(X.values, dtype=torch.float32)
+Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
-## K-Fold CV Setup
+## Training Setup
 ###################################################################
-k_folds = 5
+n_folds = 5
 kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
 X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
 
@@ -101,184 +113,23 @@ learning_rate = 1e-3
 batch_size = 16
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
+# Train the model on the data from the experiment
+(best_overall_weights, best_scaler_x, best_scaler_y,
+        best_overall_train_idx, best_overall_val_idx,
+        best_overall_rmse, best_norm_rmse_turb_int, 
+        best_norm_rmse_L_ux, fold_results, final_model) = train_nn_kfold(X_train, Y_train,
+                   k_folds=n_folds, hidden_size=hidden_size,
+                   num_epochs=num_epochs, learning_rate=learning_rate,
+                   batch_size=batch_size, device=device, plot=True)
 
-def get_model():
-    return nn.Sequential(nn.Linear(input_size, hidden_size),
-                         nn.BatchNorm1d(hidden_size),
-                         nn.LeakyReLU(),
-                         nn.Linear(hidden_size, hidden_size // 2),
-                         nn.BatchNorm1d(hidden_size // 2),
-                         nn.LeakyReLU(),
-                         nn.Linear(hidden_size // 2, output_size)
-                         ).to(device)
-
-
-###################################################################
-## K-Fold based training Loop
-###################################################################
-fold_results = []
-best_overall_rmse = np.inf
-best_overall_weights = None
-best_norm_rmse_turb_int = None
-best_norm_rmse_L_ux = None
-best_scaler_x = None
-best_scaler_y = None
-
-for fold, (train_idx, val_idx) in enumerate(kf.split(X_train)):
-    print(f"\nFold {fold + 1}")
-    scaler_x = MinMaxScaler(feature_range=(-1, 1))
-    scaler_y = MinMaxScaler(feature_range=(-1, 1))
-
-    x_train = scaler_x.fit_transform(X_train[train_idx])
-    y_train = scaler_y.fit_transform(Y_train[train_idx])
-
-    # NOTE: this is being used as a validation set even though var name is train
-    x_val = scaler_x.transform(X_train[val_idx])  
-    y_val = scaler_y.transform(Y_train[val_idx])
-
-    x_train = torch.tensor(x_train, dtype=torch.float32).to(device)
-    y_train = torch.tensor(y_train, dtype=torch.float32).to(device)
-    x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
-    y_val = torch.tensor(y_val, dtype=torch.float32).to(device)
-
-    train_dataset = TensorDataset(x_train, y_train)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-    model = get_model()
-    training_crit = nn.SmoothL1Loss()
-    mse_crit = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-
-    best_rmse, best_epoch = np.inf, -1
-    best_weights = None
-
-    train_rmse_curve = []
-    val_rmse_curve = []
-
-    for epoch in range(num_epochs):
-        model.train()
-        for xb, yb in train_loader:
-            optimizer.zero_grad()
-            y_pred = model(xb)
-            loss = training_crit(y_pred, yb)
-            loss.backward()
-            optimizer.step()
-
-        model.eval()
-        with torch.no_grad():
-            y_train_pred = model(x_train)
-            y_val_pred = model(x_val)
-
-            y_train_pred_unscaled = torch.tensor(scaler_y.inverse_transform(y_train_pred.cpu().numpy()))
-            y_val_pred_unscaled = torch.tensor(scaler_y.inverse_transform(y_val_pred.cpu().numpy()))
-
-            y_train_unscaled = torch.tensor(Y_all[train_idx].numpy())
-            y_val_unscaled = torch.tensor(Y_all[val_idx].numpy())
-
-            train_rmse = torch.sqrt(mse_crit(y_train_pred_unscaled, y_train_unscaled)).item()
-            val_rmse = torch.sqrt(mse_crit(y_val_pred_unscaled, y_val_unscaled)).item()
-
-            train_rmse_curve.append(train_rmse)
-            val_rmse_curve.append(val_rmse)
-
-            if val_rmse < best_rmse:
-                best_rmse = val_rmse
-                best_epoch = epoch
-                best_weights = copy.deepcopy(model.state_dict())
-    
-    print(f"Best Epoch: {best_epoch}, Best RMSE (unscaled): {best_rmse:.4f}")
-    fold_results.append(best_rmse)
-
-    #
-    # Learning curve
-    #
-    plt.figure(figsize=(10, 8))
-    plt.plot(train_rmse_curve, label="Train RMSE (unscaled)")
-    plt.plot(val_rmse_curve, label="Val RMSE (unscaled)")
-    plt.xlabel("Epoch")
-    plt.ylabel("RMSE")
-    plt.title(f"Learning Curve - Fold {fold+1}")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    #
-    # Residual Plot
-    #
-    model.load_state_dict(best_weights)
-    model.eval()
-    with torch.no_grad():
-        y_val_pred = model(x_val)
-        y_val_pred_unscaled_np = scaler_y.inverse_transform(y_val_pred.cpu().numpy())
-        y_val_unscaled_np = Y_all[val_idx].numpy()
-        residuals = y_val_unscaled_np - y_val_pred_unscaled_np
-
-        # Compute per output RMSE
-        rmse_turb_int = torch.sqrt(torch.tensor(mse_crit(torch.tensor(y_val_pred_unscaled_np[:, 0]),
-                                                          torch.tensor(y_val_unscaled_np[:, 0])))
-                                   ).item()
-        rmse_L_ux = torch.sqrt(torch.tensor(mse_crit(torch.tensor(y_val_pred_unscaled_np[:, 1]),
-                                                      torch.tensor(y_val_unscaled_np[:, 1])))
-                               ).item()
-
-        # Normalize based on range
-        range_turb_int = Y["Turbulence Intensity"].max() - Y["Turbulence Intensity"].min()
-        range_L_ux = Y["L_ux / M"].max() - Y["L_ux / M"].min()
-        norm_rmse_turb_int = rmse_turb_int / range_turb_int
-        norm_rmse_L_ux = rmse_L_ux / range_L_ux
-
-        print(f"Fold {fold + 1} Normalized RMSEs:")
-        print(f"    Turbulence Intensity: {norm_rmse_turb_int:.4f}")
-        print(f"    L_ux / M: {norm_rmse_L_ux:.4f}")
-
-        temp_inputs = X_all[val_idx].detach().numpy()
-
-        for i, target_name in enumerate(["Turbulence Intensity", "L_ux / M"]):
-            # plt.figure(figsize=(10, 8))
-            # plt.scatter(y_val_pred_unscaled_np[:, i], residuals[:, i], alpha=0.7, label=f"Residuals for {target_name}")
-            # plt.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Zero Residual Line")
-            # plt.xlabel(f"Predicted {target_name} (unscaled)")
-            # plt.ylabel(f"Residual {target_name} (unscaled)")
-            # plt.title(f"Fold {fold + 1} Residual Plot: {target_name}")
-            # plt.legend()
-            # plt.grid(True)
-            # plt.show()
-
-            fig1 = plt.figure(figsize=(10, 8))
-            ax1 = fig1.add_subplot(111, projection='3d')
-            p1 = ax1.scatter(temp_inputs[:, 0], temp_inputs[:, 1], temp_inputs[:, 2],
-                             c=residuals[:, i], cmap='magma',
-                             marker='o', s=50, alpha=0.8
-                             )
-            cbar1 = fig1.colorbar(p1, ax=ax1, shrink=0.5, pad=0.1)
-            cbar1.set_label('Residuals - ' + target_name)
-            ax1.set_xlabel('Grid Re', labelpad=7)
-            ax1.set_ylabel('Rossby Number')
-            ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
-            ax1.set_title('3D Scatter: ' + target_name)
-            plt.show()
-
-    # Track best model across all folds on the validation fold
-    if best_rmse < best_overall_rmse: 
-        best_overall_rmse = best_rmse
-        best_overall_train_idx, best_overall_val_idx = train_idx, val_idx
-        best_norm_rmse_turb_int = norm_rmse_turb_int
-        best_norm_rmse_L_ux = norm_rmse_L_ux
-        best_overall_weights = copy.deepcopy(best_weights)
-        best_scaler_x = copy.deepcopy(scaler_x)
-        best_scaler_y = copy.deepcopy(scaler_y)
-
-    final_model = get_model()
-    final_model.load_state_dict(best_overall_weights)
-    final_model.eval()
-    with torch.no_grad():
-        x_test_scaled = best_scaler_x.transform(X_test.numpy())
-        x_test_tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(device)
-        y_test_pred = final_model(x_test_tensor)
-        y_test_pred_unsc = torch.tensor(best_scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
-        y_test_unsc = torch.tensor(Y_test.numpy())
-        test_rmse = torch.sqrt(mse_crit(y_test_pred_unsc, y_test_unsc)).item()
-    print(f"Test set RMSE: {test_rmse:.4f}")
+with torch.no_grad():
+    x_test_scaled = best_scaler_x.transform(X_test.numpy())
+    x_test_tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(device)
+    y_test_pred = final_model(x_test_tensor)
+    y_test_pred_unsc = torch.tensor(best_scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
+    y_test_unsc = torch.tensor(Y_test.numpy())
+    test_rmse = torch.sqrt(mse_crit(y_test_pred_unsc, y_test_unsc)).item()
+print(f"Test set RMSE: {test_rmse:.4f}")
 
 
 ###################################################################
