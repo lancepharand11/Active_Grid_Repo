@@ -178,4 +178,4 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
 
     return (best_overall_weights, best_scaler_x, best_scaler_y,
             best_overall_train_idx, best_overall_val_idx,
-            best_overall_rmse, best_norm_rmse_turb_int, best_norm_rmse_L_ux, fold_results, model)
+            best_overall_rmse, best_norm_rmse_turb_int, best_norm_rmse_L_ux, fold_results, mse_crit, model)
