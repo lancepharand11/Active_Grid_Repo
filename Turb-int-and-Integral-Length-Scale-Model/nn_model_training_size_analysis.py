@@ -149,7 +149,7 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         (best_overall_weights, best_scaler_x, best_scaler_y,
                 best_overall_train_idx, best_overall_val_idx,
                 best_overall_rmse, best_norm_rmse_turb_int, 
-                best_norm_rmse_L_ux, fold_results, model) = train_nn_kfold(X_experiment, Y_experiment,
+                best_norm_rmse_L_ux, fold_results, mse_crit, model) = train_nn_kfold(X_experiment, Y_experiment,
                            k_folds=5, hidden_size=hidden_size,
                            num_epochs=num_epochs, learning_rate=learning_rate,
                            batch_size=batch_size, device=device, plot=False)
