@@ -65,7 +65,6 @@ for file in list(dataDir.glob('*.mat')):
 IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
-                       "Shaft Speed Standard Deviation * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
                        })
@@ -85,9 +84,9 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:4]
-Y = IO_data.iloc[:, 4:6]
-Y_Uncertainty = IO_data.iloc[:, 6:8]
+X = IO_data.iloc[:, 1:3]
+Y = IO_data.iloc[:, 3:5]
+# Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -100,9 +99,9 @@ Y_Uncertainty = IO_data.iloc[:, 6:8]
 X_all = torch.tensor(X.values, dtype=torch.float32)
 Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
-## Training Setup
+# %% Training Setup
 ###################################################################
-n_folds = 5
+k_folds = 5
 kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
 X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
 
@@ -117,8 +116,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.b
 (best_overall_weights, best_scaler_x, best_scaler_y,
         best_overall_train_idx, best_overall_val_idx,
         best_overall_rmse, best_norm_rmse_turb_int, 
-        best_norm_rmse_L_ux, fold_results, final_model) = train_nn_kfold(X_train, Y_train,
-                   k_folds=n_folds, hidden_size=hidden_size,
+        best_norm_rmse_L_ux, fold_results, mse_crit, final_model) = train_nn_kfold(X_train, Y_train,
+                   k_folds=k_folds, hidden_size=hidden_size,
                    num_epochs=num_epochs, learning_rate=learning_rate,
                    batch_size=batch_size, device=device, plot=True)
 
@@ -133,7 +132,7 @@ print(f"Test set RMSE: {test_rmse:.4f}")
 
 
 ###################################################################
-## Save Best Model
+# %% Save Best Model
 ###################################################################
 from datetime import datetime
 unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")

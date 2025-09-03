@@ -153,8 +153,8 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
             if plot:
                 for i, target_name in enumerate(["Turbulence Intensity", "L_ux / M"]):
                     fig1 = plt.figure(figsize=(10, 8))
-                    ax1 = fig1.add_subplot(111, projection='3d')
-                    p1 = ax1.scatter(temp_inputs[:, 0], temp_inputs[:, 1], temp_inputs[:, 2],
+                    ax1 = fig1.add_subplot(111)
+                    p1 = ax1.scatter(temp_inputs[:, 0], temp_inputs[:, 1],
                                      c=residuals[:, i], cmap='magma',
                                      marker='o', s=50, alpha=0.8
                                      )
@@ -162,8 +162,6 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
                     cbar1.set_label('Residuals - ' + target_name)
                     ax1.set_xlabel('Grid Re', labelpad=7)
                     ax1.set_ylabel('Rossby Number')
-                    ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
-                    ax1.set_title('3D Scatter: ' + target_name)
                     plt.show()
 
         # Track best model across all folds
