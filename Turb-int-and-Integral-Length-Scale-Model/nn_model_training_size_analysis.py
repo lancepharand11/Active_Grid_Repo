@@ -169,7 +169,7 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
             
             Y_test_pred = model(X_test)
             Y_test_pred_unscaled_np = best_scaler_y.inverse_transform(Y_test_pred.cpu().numpy())
-            Y_test_unscaled_np = Y_test.numpy()
+            Y_test_unscaled_np = best_scaler_y.inverse_transform(Y_test.numpy())
             residuals = Y_test_unscaled_np - Y_test_pred_unscaled_np
         
             # Relative RMSE
