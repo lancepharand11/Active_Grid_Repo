@@ -13,17 +13,22 @@ plt.rcParams.update({
     "font.family": "Helvetica"
 })
 
-PolynomialData = pd.read_csv("../Turb-int-and-Integral-Length-Scale-Model/Training Data Size Analysis Results/Polynomial.csv")
+PolynomialOrder1Data = pd.read_csv("../Turb-int-and-Integral-Length-Scale-Model/Training Data Size Analysis Results/Polynomial_Order1.csv")
+PolynomialOrder2Data = pd.read_csv("../Turb-int-and-Integral-Length-Scale-Model/Training Data Size Analysis Results/Polynomial_Order2.csv")
 
 NNData = pd.read_csv("../Turb-int-and-Integral-Length-Scale-Model/Training Data Size Analysis Results/Neural Network.csv")
 
 # %% Plot
 fig, ax = plt.subplots(1, 1, figsize=(6.375, 6.375*2/3))
-ax.plot(PolynomialData["Size of Training Data"],PolynomialData["Tu RMS Relative Error"], linestyle="--", color="k", label=r"$Tu$ $5^{\textrm{th}}$-Order Polynomial")
-ax.plot(PolynomialData["Size of Training Data"],PolynomialData["L_ux RMS Relative Error"], linestyle="--", color="b", label=r"$L_{ux}$ $5^{\textrm{th}}$-Order Polynomial")
-
+# Turbulence Intensity
+ax.plot(PolynomialOrder1Data["Size of Training Data"],PolynomialOrder1Data["Tu RMS Relative Error"], linestyle="--", color="k", label=r"$Tu$ $1^{\textrm{st}}$-Order Polynomial")
+ax.plot(PolynomialOrder2Data["Size of Training Data"],PolynomialOrder2Data["Tu RMS Relative Error"], linestyle=":", color="k", label=r"$Tu$ $2^{\textrm{nd}}$-Order Polynomial")
 ax.plot(NNData["Size of Training Data"],NNData["Tu RMS Relative Error"], linestyle="-", color="k", label="$Tu$ Neural Network")
+# Integral Length Scale
+ax.plot(PolynomialOrder1Data["Size of Training Data"],PolynomialOrder1Data["L_ux RMS Relative Error"], linestyle="--", color="b", label=r"$L_{ux}$ $1^{\textrm{st}}$-Order Polynomial")
+ax.plot(PolynomialOrder2Data["Size of Training Data"],PolynomialOrder2Data["L_ux RMS Relative Error"], linestyle=":", color="b", label=r"$L_{ux}$ $2^{\textrm{nd}}$-Order Polynomial")
 ax.plot(NNData["Size of Training Data"],NNData["L_ux RMS Relative Error"], linestyle="-", color="b", label="$L_{ux}$ Neural Network")
+
 ax.set_yscale("log")
 ax.set_xlabel("Size of training data set")
 ax.set_ylabel("RMS Relative Error")

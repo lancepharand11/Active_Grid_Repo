@@ -117,7 +117,7 @@ train_data_size = np.zeros(n_steps)
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 20
+    n_experiments = 100
     rel_rmse_turb_int = np.zeros(n_experiments)
     rel_rmse_L_ux = np.zeros(n_experiments)
     

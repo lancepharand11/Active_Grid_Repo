@@ -94,7 +94,7 @@ Y_all = torch.tensor(Y_all.values, dtype=torch.float32)
 ###################################################################
 ## Experiment Simulation Setup
 ###################################################################
-polynomial_order = 5
+polynomial_order = 2
 min_train_fraction = 0.2
 max_train_fraction = 0.90
 n_steps = 10
@@ -109,7 +109,7 @@ train_data_size = np.zeros(n_steps)
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 20
+    n_experiments = 500
     SS = ShuffleSplit(n_splits=n_experiments, train_size=train_fraction, test_size=test_fraction, random_state=25)
 
     best_overall_rmse = np.inf
@@ -179,4 +179,4 @@ training_size_data = pd.DataFrame({"Size of Training Data": train_data_size,
                                    "Tu RMS Relative Error": overall_rel_rmse_turb_int,
                                    "L_ux RMS Relative Error": overall_norm_rmse_Lux})
 
-training_size_data.to_csv("./Training Data Size Analysis Results/Polynomial.csv")
+training_size_data.to_csv(f"./Training Data Size Analysis Results/Polynomial_Order{polynomial_order}.csv")
