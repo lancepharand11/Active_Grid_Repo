@@ -18,7 +18,7 @@ k = 1 # Assumed hotwire pitch sensitivity coefficient
 calibrationData = scipy.io.loadmat(r'202407101234_Connor.mat')
 
 # Hotwire data directory
-dataDir = Path('/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance')
+dataDir = Path('/Users/ctoppings/Nextcloud/Experimental Data/Active_Grid_Data_Lance')
 
 TurbulenceCases = list(dataDir.glob('*.mat'))
 

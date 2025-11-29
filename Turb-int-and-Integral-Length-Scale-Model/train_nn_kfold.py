@@ -22,10 +22,10 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
         return nn.Sequential(nn.Linear(input_size, hidden_size),
                              nn.BatchNorm1d(hidden_size),
                              nn.LeakyReLU(),
-                             nn.Linear(hidden_size, hidden_size // 2),
-                             nn.BatchNorm1d(hidden_size // 2),
+                             #nn.Linear(hidden_size, hidden_size // 2),
+                             #nn.BatchNorm1d(hidden_size // 2),
                              nn.LeakyReLU(),
-                             nn.Linear(hidden_size // 2, output_size)
+                             nn.Linear(hidden_size, output_size)
                              ).to(device)
 
     fold_results = []

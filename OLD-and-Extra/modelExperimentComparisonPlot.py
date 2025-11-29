@@ -16,11 +16,11 @@ sys.path.insert(0, os.path.abspath('../Turb-int-and-Integral-Length-Scale-Model'
 from IntensityLengthModelClass import IntensityLengthModel
 
 # Load the CSV file into a DataFrame
-IO_data_file_path = "./DataSummary.csv"
+IO_data_file_path = "./DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 # %% Load the Model
-modelID = "20250708_085121"
+modelID = "20250904_160728"
 modelPath = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_{modelID}.pth"
 # Load the scalers
 scaler1Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_{modelID}.pkl"
@@ -38,41 +38,41 @@ Ro_Re_M_Const_20000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_20000 = np.ones(Ro_Re_M_Const_20000.shape)*20000
 sigma = np.ones(Ro_Re_M_Const_20000.shape)*0.0075
 
-Tu_Re_M_Const_20000, L_ux_Re_M_Const_20000 = Model.evaluate(Re_M_Re_M_Const_20000, Ro_Re_M_Const_20000, sigma)
+Tu_Re_M_Const_20000, L_ux_Re_M_Const_20000 = Model.evaluate(Re_M_Re_M_Const_20000, Ro_Re_M_Const_20000)
 
 # Evaluate the model for Re_M = 30000
 Ro_Re_M_Const_30000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_30000 = np.ones(Ro_Re_M_Const_30000.shape)*30000
 sigma = np.ones(Ro_Re_M_Const_30000.shape)*0.0075
 
-Tu_Re_M_Const_30000, L_ux_Re_M_Const_30000 = Model.evaluate(Re_M_Re_M_Const_30000, Ro_Re_M_Const_30000, sigma)
+Tu_Re_M_Const_30000, L_ux_Re_M_Const_30000 = Model.evaluate(Re_M_Re_M_Const_30000, Ro_Re_M_Const_30000)
 
 # Evaluate the model for Re_M = 40000
 Ro_Re_M_Const_40000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_40000 = np.ones(Ro_Re_M_Const_40000.shape)*40000
 sigma = np.ones(Ro_Re_M_Const_40000.shape)*0.0075
 
-Tu_Re_M_Const_40000, L_ux_Re_M_Const_40000 = Model.evaluate(Re_M_Re_M_Const_40000, Ro_Re_M_Const_40000, sigma)
+Tu_Re_M_Const_40000, L_ux_Re_M_Const_40000 = Model.evaluate(Re_M_Re_M_Const_40000, Ro_Re_M_Const_40000)
 
 # Evaluate the model for Ro = 15
 Re_M_Ro_Const_15 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_15 = np.ones(Re_M_Ro_Const_15.shape)*15
 sigma = np.ones(Re_M_Ro_Const_15.shape)*0.0075
 
-Tu_Ro_Const_15, L_ux_Ro_Const_15 = Model.evaluate(Re_M_Ro_Const_15, Ro_Ro_Const_15, sigma)
+Tu_Ro_Const_15, L_ux_Ro_Const_15 = Model.evaluate(Re_M_Ro_Const_15, Ro_Ro_Const_15)
 
 # Evaluate the model for Ro = 25
 Re_M_Ro_Const_25 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_25 = np.ones(Re_M_Ro_Const_25.shape)*25
 sigma = np.ones(Re_M_Ro_Const_25.shape)*0.0075
 
-Tu_Ro_Const_25, L_ux_Ro_Const_25 = Model.evaluate(Re_M_Ro_Const_25, Ro_Ro_Const_25, sigma)
+Tu_Ro_Const_25, L_ux_Ro_Const_25 = Model.evaluate(Re_M_Ro_Const_25, Ro_Ro_Const_25)
 
 # Evaluate the model for Ro = 40
 Re_M_Ro_Const_40 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_40 = np.ones(Re_M_Ro_Const_40.shape)*40
 sigma = np.ones(Re_M_Ro_Const_40.shape)*0.0075
-Tu_Ro_Const_40, L_ux_Ro_Const_40 = Model.evaluate(Re_M_Ro_Const_40, Ro_Ro_Const_40, sigma)
+Tu_Ro_Const_40, L_ux_Ro_Const_40 = Model.evaluate(Re_M_Ro_Const_40, Ro_Ro_Const_40)
 
 # %% Select the experimental data
 
@@ -85,7 +85,7 @@ constant_re_20000 = (IO_data["Grid Re"] > 15000) & (IO_data["Grid Re"] < 25000)
 constant_ro_15 = (IO_data["Rossby Number"] == 15)
 constant_ro_25 = (IO_data["Rossby Number"] == 25)
 constant_ro_40 = (IO_data["Rossby Number"] == 40)
-constant_sigma_200 = (shaft_speed_product > 100) & (shaft_speed_product < 300)
+constant_sigma_200 = (shaft_speed_product > 600) & (shaft_speed_product < 700)
 
 # For Re_M = 30000
 Re_M_Const_30000_Exp = IO_data[constant_re_30000 & constant_sigma_200].copy()
@@ -150,7 +150,7 @@ axs[0].plot(Ro_Re_M_Const_20000, Tu_Re_M_Const_20000*100, c="b", lw = 1)
 axs[0].plot(Ro_Re_M_Const_30000, Tu_Re_M_Const_30000*100, c="k", lw = 1)
 axs[0].plot(Ro_Re_M_Const_40000, Tu_Re_M_Const_40000*100, c="r", lw = 1)
 axs[0].set_xlabel(r"$\textrm{Ro}$")
-axs[0].set_ylabel('$Tu$ [\%]')
+axs[0].set_ylabel(r'$Tu$ [\%]')
 axs[0].legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=1, frameon=False)
 #axs[0].set_title(r"$\\textrm{Re}_M=3\\times10^5$")
 
@@ -176,7 +176,7 @@ axs[1].errorbar(Ro_Const_40_Exp["Grid Re"],
 axs[1].plot(Re_M_Ro_Const_15,Tu_Ro_Const_15*100, c="b", lw = 1)
 axs[1].plot(Re_M_Ro_Const_25,Tu_Ro_Const_25*100, c="k", lw = 1)
 axs[1].plot(Re_M_Ro_Const_40,Tu_Ro_Const_40*100, c="r", lw = 1)
-axs[1].set_ylabel('$Tu$ [\%]')
+axs[1].set_ylabel(r'$Tu$ [\%]')
 axs[1].set_xlabel(r"$\textrm{Re}_M$")
 axs[1].legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=1, frameon=False)
 #axs[1].set_title(r"$\\textrm{Ro}=25$")

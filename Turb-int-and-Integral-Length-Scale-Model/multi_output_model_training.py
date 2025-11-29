@@ -29,7 +29,7 @@ from torch import nn, optim
 import torch
 
 # dataDir = Path('F:\Lance\Active_Grid_Model_Data')
-dataDir = Path('/Users/lancepharand/Desktop/URA_S24/Experiment_Scripts/Active_Grid_Data_and_Files/Active_Grid_Data')
+dataDir = Path('D:/Active_Grid_Data_Lance/Selected Data')
 script_dir = Path(__file__).parent
 counter = 0
 turb_objects = []
@@ -39,47 +39,46 @@ Turbulence_Parameters.overlap = 0.5
 Turbulence_Parameters.mesh_length = 0.06096
 seed = 42
 
-for file in list(dataDir.glob('*.mat')):
-    if counter == 0:
-     time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
-    counter += 1
+# for file in list(dataDir.glob('*.mat')):
+#     if counter == 0:
+#      time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
+#     counter += 1
 
-    Ro_string = file.stem.split("_")[3]
-    if Ro_string == '-':
-     continue
-    file_Ro = float(Ro_string)
-    file_shaftSpeedSTD = float(file.stem.split("_")[5])
+#     Ro_string = file.stem.split("_")[3]
+#     if Ro_string == '-':
+#      continue
+#     file_Ro = float(Ro_string)
+#     file_shaftSpeedSTD = float(file.stem.split("_")[5])
 
-    mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
-    mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
-    temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
-                                       freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
-                                       shaft_speed_std_dev=file_shaftSpeedSTD)
-    temp_turb_obj.filter_velo()
-    temp_turb_obj.calc_L_ux()
-    temp_turb_obj.calc_turb_intensity()
-    turb_objects.append(temp_turb_obj)
+#     mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
+#     mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
+#     temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
+#                                        freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
+#                                        shaft_speed_std_dev=file_shaftSpeedSTD)
+#     temp_turb_obj.filter_velo()
+#     temp_turb_obj.calc_L_ux()
+#     temp_turb_obj.calc_turb_intensity()
+#     turb_objects.append(temp_turb_obj)
 
-    print(f"Loading file {counter}")
+#     print(f"Loading file {counter}")
 
-IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
-                       "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
-                       "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
-                       "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
-                       "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
-                       })
+# IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
+#                        "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
+#                        "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
+#                        "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
+#                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
+#                        })
 
-# IO_data_file_path = "../OLD-and-Extra/DataSummary.csv"
-# IO_data = pd.read_csv(IO_data_file_path)
+IO_data_file_path = "../OLD-and-Extra/DataSummarySigma620.csv"
+IO_data = pd.read_csv(IO_data_file_path)
 
-# IO_data = IO_data[["Trial Name",
-#                    "Grid Re",
-#                    "Rossby Number",
-#                    "Shaft Speed Standard Deviation * M / u_inf",
-#                    "Turbulence Intensity",
-#                    "L_ux / M",
-#                    "Turbulence Intensity Uncertainty",
-#                    "L_ux Uncertainty"]]
+IO_data = IO_data[["Trial Name",
+                   "Grid Re",
+                   "Rossby Number",
+                   "Turbulence Intensity",
+                   "L_ux / M",
+                   "Turbulence Intensity Uncertainty",
+                   "L_ux Uncertainty"]]
 
 ###################################################################
 ## Preprocessing
@@ -106,7 +105,7 @@ kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
 X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
 
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
-hidden_size = 64
+hidden_size = 2
 num_epochs = 1000
 learning_rate = 1e-3
 batch_size = 16
@@ -120,6 +119,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.b
                    k_folds=k_folds, hidden_size=hidden_size,
                    num_epochs=num_epochs, learning_rate=learning_rate,
                    batch_size=batch_size, device=device, plot=True)
+                                                            
 
 with torch.no_grad():
     x_test_scaled = best_scaler_x.transform(X_test.numpy())

@@ -33,7 +33,7 @@ from torch import nn, optim
 import torch
 import copy
 
-dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/")
+dataDir = Path("C:/Users/ctoppings/surfdrive/Experimental Data/Active_Grid_Data_Lance/Selected Data")
 counter = 0
 turb_objects = []
 Turbulence_Parameters.fs = 25600
@@ -72,13 +72,12 @@ Turbulence_Parameters.mesh_length = 0.06096
 #                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
 #                         })
 
-IO_data_file_path = "../OLD-and-Extra/DataSummary.csv"
+IO_data_file_path = "../OLD-and-Extra/DataSummarySigma620.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 IO_data = IO_data[["Trial Name",
                    "Grid Re",
                    "Rossby Number",
-                   "Shaft Speed Standard Deviation * M / u_inf",
                    "Turbulence Intensity",
                    "L_ux / M",
                    "Turbulence Intensity Uncertainty",
@@ -87,9 +86,9 @@ IO_data = IO_data[["Trial Name",
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:4]
-Y = IO_data.iloc[:, 4:6]
-Y_Uncertainty = IO_data.iloc[:, 6:8]
+X = IO_data.iloc[:, 1:3]
+Y = IO_data.iloc[:, 3:5]
+Y_Uncertainty = IO_data.iloc[:, 5:7]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -105,11 +104,11 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ## Experiment Simulation Setup
 ###################################################################
 
-min_train_fraction = 0.1
+min_train_fraction = 0.2
 max_train_fraction = 0.90
-n_steps = 5
+n_steps = 10
 
-val_fraction = 0.1
+test_fraction = 0.1
 
 overall_rel_rmse_turb_int = np.zeros(n_steps)
 overall_rel_rmse_L_ux = np.zeros(n_steps)
@@ -118,11 +117,11 @@ train_data_size = np.zeros(n_steps)
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 5
+    n_experiments = 20
     rel_rmse_turb_int = np.zeros(n_experiments)
     rel_rmse_L_ux = np.zeros(n_experiments)
     
-    SS = ShuffleSplit(n_splits=n_experiments, train_size=train_fraction, test_size=val_fraction, random_state=0)
+    SS = ShuffleSplit(n_splits=n_experiments, train_size=train_fraction, test_size=test_fraction, random_state=0)
     
     # Loop through each experiment
     for experiment, (experiment_train_idx, experiment_test_idx) in enumerate(SS.split(X_all)):
@@ -139,7 +138,7 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         
         # Model Setup
         input_size, output_size = X_experiment.shape[1], Y_experiment.shape[1]
-        hidden_size = 64
+        hidden_size = 2
         num_epochs = 1000
         learning_rate = 1e-3
         batch_size = 16
@@ -178,7 +177,7 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
             rel_rmse_turb_int[experiment] = np.sqrt(np.sum(rel_err_turb_int**2) / rel_err_turb_int.size)
             rel_rmse_L_ux[experiment] = np.sqrt(np.sum(rel_err_L_ux**2) / rel_err_L_ux.size)
         
-            print(f"Experiment {experiment + 1} Relative RMSEs:")
+            print(f"Experiment {experiment + 1} of {n_experiments} Relative RMSEs:")
             print(f"    Turbulence Intensity: {rel_rmse_turb_int[experiment]:.4f}")
             print(f"    L_ux / M: {rel_rmse_L_ux[experiment]:.4f}")
     

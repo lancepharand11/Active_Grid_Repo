@@ -14,8 +14,8 @@ class IntensityLengthModel:
     
     # Define the model architecture
     # IMPORTANT: Must match the saved model's architecture
-    input_size = 3
-    hidden_size = 64
+    input_size = 2
+    hidden_size = 2
     output_size = 2
     
     def __init__(self, modelPath : str, scaler1Path : str, scaler2Path : str):
@@ -50,18 +50,17 @@ class IntensityLengthModel:
 
     # %% Methods
     
-    def evaluate(self, Re_M : np.ndarray, Ro : np.ndarray, sigma : np.ndarray):
+    def evaluate(self, Re_M : np.ndarray, Ro : np.ndarray):
         
-        if Re_M.shape != Ro.shape != sigma.shape:
+        if Re_M.shape != Ro.shape :
             raise("Grid motion parameters must have the same shape")
             
         inputShape = Re_M.shape
 
         Re_M = Re_M.reshape(-1,1)
         Ro = Ro.reshape(-1,1)
-        sigma = sigma.reshape(-1,1)
 
-        input_parameters = np.column_stack((Re_M, Ro, sigma))
+        input_parameters = np.column_stack((Re_M, Ro))
         scaled_input_parameters = self.scaler1.transform(input_parameters)
         input_tensor = torch.tensor(scaled_input_parameters, dtype=torch.float32, requires_grad=False).to(self.device)
         
