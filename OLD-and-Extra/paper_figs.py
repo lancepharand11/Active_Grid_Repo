@@ -20,6 +20,9 @@ sys.path.insert(0, os.path.abspath('../'))
 from Turbulence_Parameters_class import Turbulence_Parameters
 from dataOverviewPlot import dataOverviewPlot
 from shaftSpeedStdPlot import shaftSpeedStdPlot
+from inputOutputHeatmapPlot import inputOutputHeatmapPlot
+
+import seaborn as sns
 
 # %%
 
@@ -107,108 +110,15 @@ dataComparisonFigure.savefig(dataComparisonFigure_FileName,format="eps")
 # %% Effect of Shaft Speed Standard Deviation
 ###################################################################
 
-shaftSpeedStdFigure = shaftSpeedStdPlot(IO_data_to_save)
+shaftSpeedStdFigure = shaftSpeedStdPlot(IO_data)
 shaftSpeedStdFigure_FileName = "../Figures/shaftSpeedStd.eps"
 shaftSpeedStdFigure.savefig(shaftSpeedStdFigure_FileName,format="eps")
 
 ###################################################################
-# %% Model Input Data Statistics
+# %% Model Input and Output Heatmap
 ###################################################################
-col_labels = ["Integral section " + str(s) for s in range(Turbulence_Parameters.num_sections)]
-turb_sections = pd.DataFrame(IO_data.iloc[:, 10].to_list(), columns=col_labels)
 
-# Select core variables
-core_cols = [
-    "Grid Re",
-    "Rossby Number",
-    "Shaft Speed Standard Deviation * M / u_inf",
-    "Turbulence Intensity",
-    "L_ux / M"
-]
+inputOutputHeatmapFigure = inputOutputHeatmapPlot(IO_data)
+inputOutputHeatmapFigure_FileName = "../Figures/inputOutputHeatmap.eps"
+inputOutputHeatmapFigure.savefig(inputOutputHeatmapFigure_FileName,format="eps")
 
-# Combine and compute statistics
-df_all = pd.concat([IO_data[core_cols], turb_sections], axis=1)
-stats = df_all.agg(['mean', 'std', 'min', 'median', 'max']).T
-stats.index.name = 'Variable'
-stats.rename_axis(columns='Statistic', inplace=True)
-print(stats.to_markdown())
-
-###################################################################
-# %% Preprocessing and Model Setup
-###################################################################
-from scipy import stats
-
-# Split the data and combine it. NOTE: Using only turb intensity & integral length scale for the y
-X = IO_data.iloc[:, 1:4]
-Y = IO_data.iloc[:, 4:6]
-XY = pd.concat([X, Y], axis=1)
-
-# Compute z-scores for each column
-z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
-threshold = 3  # Threshold z-score
-rows_with_outlier = (z_scores > threshold).any(axis=1)
-XY_filtered = XY[~rows_with_outlier]
-
-# Split back into X and Y
-X_filtered = XY_filtered.iloc[:, :X.shape[1]]
-Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
-
-#######################
-# %% 3D scatter plots
-#######################
-x = X_filtered.iloc[:, 0].values  # Grid Re
-y = X_filtered.iloc[:, 1].values  # Rossby Number
-z = X_filtered.iloc[:, 2].values  # Shaft Speed Std Dev
-
-y1 = Y_filtered.iloc[:, 0].values  # turb intensity
-y2 = Y_filtered.iloc[:, 1].values  # int length scale
-
-fig1 = plt.figure(figsize=(10, 8))
-ax1 = fig1.add_subplot(111, projection='3d')
-p1 = ax1.scatter(x, y, z, c=y1, cmap='magma',
-                 marker='o', s=50, alpha=0.8
-                 )
-cbar1 = fig1.colorbar(p1, ax=ax1, shrink=0.5, pad=0.1)
-cbar1.set_label('Turbulence Intensity')
-ax1.set_xlabel('Grid Re', labelpad=7)
-ax1.set_ylabel('Rossby Number')
-ax1.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
-ax1.set_title('3D Scatter: Turbulence Intensity')
-
-fig2 = plt.figure(figsize=(10, 8))
-ax2 = fig2.add_subplot(111, projection='3d')
-p2 = ax2.scatter(x, y, z, c=y2, cmap='viridis',
-                 marker='^', s=50, alpha=0.8
-                 )
-cbar2 = fig2.colorbar(p2, ax=ax2, shrink=0.5, pad=0.1)
-cbar2.set_label('L_ux / M')
-ax2.set_xlabel('Grid Re', labelpad=7)
-ax2.set_ylabel('Rossby Number')
-ax2.set_zlabel('Shaft Speed Std Dev * M / u_inf', labelpad=8, rotation=0)
-ax2.set_title('3D Scatter: Integral Length Scale')
-plt.show()
-
-# #######################
-# %% Correlation bar graph
-# #######################
-# XY_corr = XY_filtered.corr()
-# x_cols = X_filtered.columns.tolist()
-# y_cols = Y_filtered.columns.tolist()
-# corr_XY = XY_corr.loc[x_cols, y_cols]
-#
-# n_x = len(x_cols)
-# n_y = len(y_cols)
-# ind = np.arange(n_x)
-# width = 0.8 / n_y  # total width 0.8 divided among Y-bars. Leaves a 0.2 gap between features in the graph
-#
-# fig, ax = plt.subplots(figsize=(10, 8))
-# for i, y in enumerate(y_cols):
-#     ax.bar(ind + i * width, corr_XY[y].values, width, label=y)
-#
-# ax.set_xticks(ind + width * (n_y - 1) / 2)
-# ax.set_xticklabels(x_cols, rotation=30, ha='right')
-# ax.set_ylabel("Pearson r")
-# ax.set_title("Correlation of each X-feature with Y-labels")
-# ax.legend(title="Y variable", bbox_to_anchor=(1.05, 1), loc='upper left')
-# plt.tight_layout()
-# plt.show()
