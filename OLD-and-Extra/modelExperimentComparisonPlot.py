@@ -20,7 +20,7 @@ IO_data_file_path = "./DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 # %% Load the Model
-modelID = "20250904_160728"
+modelID = "20251219_170438"
 modelPath = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_{modelID}.pth"
 # Load the scalers
 scaler1Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_{modelID}.pkl"
@@ -38,41 +38,41 @@ Ro_Re_M_Const_20000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_20000 = np.ones(Ro_Re_M_Const_20000.shape)*20000
 sigma = np.ones(Ro_Re_M_Const_20000.shape)*0.0075
 
-Tu_Re_M_Const_20000, L_ux_Re_M_Const_20000 = Model.evaluate(Re_M_Re_M_Const_20000, Ro_Re_M_Const_20000)
+Tu_Re_M_Const_20000, L_ux_Re_M_Const_20000 = Model.evaluate(Re_M_Re_M_Const_20000, Ro_Re_M_Const_20000, sigma)
 
 # Evaluate the model for Re_M = 30000
 Ro_Re_M_Const_30000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_30000 = np.ones(Ro_Re_M_Const_30000.shape)*30000
 sigma = np.ones(Ro_Re_M_Const_30000.shape)*0.0075
 
-Tu_Re_M_Const_30000, L_ux_Re_M_Const_30000 = Model.evaluate(Re_M_Re_M_Const_30000, Ro_Re_M_Const_30000)
+Tu_Re_M_Const_30000, L_ux_Re_M_Const_30000 = Model.evaluate(Re_M_Re_M_Const_30000, Ro_Re_M_Const_30000, sigma)
 
 # Evaluate the model for Re_M = 40000
 Ro_Re_M_Const_40000 = np.linspace(5, 75, num=100)
 Re_M_Re_M_Const_40000 = np.ones(Ro_Re_M_Const_40000.shape)*40000
 sigma = np.ones(Ro_Re_M_Const_40000.shape)*0.0075
 
-Tu_Re_M_Const_40000, L_ux_Re_M_Const_40000 = Model.evaluate(Re_M_Re_M_Const_40000, Ro_Re_M_Const_40000)
+Tu_Re_M_Const_40000, L_ux_Re_M_Const_40000 = Model.evaluate(Re_M_Re_M_Const_40000, Ro_Re_M_Const_40000, sigma)
 
 # Evaluate the model for Ro = 15
 Re_M_Ro_Const_15 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_15 = np.ones(Re_M_Ro_Const_15.shape)*15
 sigma = np.ones(Re_M_Ro_Const_15.shape)*0.0075
 
-Tu_Ro_Const_15, L_ux_Ro_Const_15 = Model.evaluate(Re_M_Ro_Const_15, Ro_Ro_Const_15)
+Tu_Ro_Const_15, L_ux_Ro_Const_15 = Model.evaluate(Re_M_Ro_Const_15, Ro_Ro_Const_15, sigma)
 
 # Evaluate the model for Ro = 25
 Re_M_Ro_Const_25 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_25 = np.ones(Re_M_Ro_Const_25.shape)*25
 sigma = np.ones(Re_M_Ro_Const_25.shape)*0.0075
 
-Tu_Ro_Const_25, L_ux_Ro_Const_25 = Model.evaluate(Re_M_Ro_Const_25, Ro_Ro_Const_25)
+Tu_Ro_Const_25, L_ux_Ro_Const_25 = Model.evaluate(Re_M_Ro_Const_25, Ro_Ro_Const_25, sigma)
 
 # Evaluate the model for Ro = 40
 Re_M_Ro_Const_40 = np.linspace(5000, 50000, num=100)
 Ro_Ro_Const_40 = np.ones(Re_M_Ro_Const_40.shape)*40
 sigma = np.ones(Re_M_Ro_Const_40.shape)*0.0075
-Tu_Ro_Const_40, L_ux_Ro_Const_40 = Model.evaluate(Re_M_Ro_Const_40, Ro_Ro_Const_40)
+Tu_Ro_Const_40, L_ux_Ro_Const_40 = Model.evaluate(Re_M_Ro_Const_40, Ro_Ro_Const_40, sigma)
 
 # %% Select the experimental data
 
