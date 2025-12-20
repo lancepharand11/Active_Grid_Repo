@@ -26,7 +26,7 @@ import seaborn as sns
 
 # %%
 
-dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/Selected Data/")
+dataDir = Path("/Users/ctoppings/Nextcloud/Experimental Data/Active_Grid_Data_Lance/Selected Data/")
 counter = 0
 turb_objects = []
 Turbulence_Parameters.fs = 25600 #Hz
@@ -85,11 +85,18 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Epsilon": (turb_obj.get_epsilon() for turb_obj in turb_objects)
                         })
 
+# Normalise the Shaft Speed Standard Deviation by the viscous time scale
+IO_data["Shaft Speed Standard Deviation * M^2 / nu"] = np.multiply(IO_data["Shaft Speed Standard Deviation * M / u_inf"], IO_data["Grid Re"])
+
 IO_data_file_path = "./DataSummaryOutliersRemoved.csv"
 IO_data_to_save = IO_data[["Trial Name", "Grid Re", "Rossby Number",
-                 "Shaft Speed Standard Deviation * M / u_inf", "Turbulence Intensity",
-                 "Turbulence Intensity Uncertainty", "L_ux / M", "L_ux Uncertainty","Anisotropy",
-                 "Re_lambda", "Epsilon"]]
+                 "Shaft Speed Standard Deviation * M / u_inf",
+                 "Shaft Speed Standard Deviation * M^2 / nu",
+                 "Turbulence Intensity",
+                 "Turbulence Intensity Uncertainty", "L_ux / M",
+                 "L_ux Uncertainty","Anisotropy",
+                 "Re_lambda",
+                 "Epsilon"]]
 # Save the DataFrame to a CSV file
 IO_data_to_save.to_csv(IO_data_file_path)
 
