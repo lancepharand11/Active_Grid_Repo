@@ -63,12 +63,13 @@ Turbulence_Parameters.mesh_length = 0.06096
 #                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
 #                         })
 
-IO_data_file_path = "../OLD-and-Extra/DataSummarySigma620.csv"
+IO_data_file_path = "../OLD-and-Extra/DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 IO_data = IO_data[["Trial Name",
                    "Grid Re",
                    "Rossby Number",
+                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity",
                    "L_ux / M",
                    "Turbulence Intensity Uncertainty",
@@ -77,9 +78,9 @@ IO_data = IO_data[["Trial Name",
 ###################################################################
 ## Preprocessing
 ###################################################################
-X_all = IO_data.iloc[:, 1:3]
-Y_all = IO_data.iloc[:, 3:5]
-Y_Uncertainty = IO_data.iloc[:, 5:7]
+X_all = IO_data.iloc[:, 1:4]
+Y_all = IO_data.iloc[:, 4:6]
+Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -94,7 +95,7 @@ Y_all = torch.tensor(Y_all.values, dtype=torch.float32)
 ###################################################################
 ## Experiment Simulation Setup
 ###################################################################
-polynomial_order = 2
+polynomial_order = 1
 min_train_fraction = 0.2
 max_train_fraction = 0.90
 n_steps = 10

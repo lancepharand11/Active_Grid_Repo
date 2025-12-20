@@ -72,12 +72,13 @@ Turbulence_Parameters.mesh_length = 0.06096
 #                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
 #                         })
 
-IO_data_file_path = "../OLD-and-Extra/DataSummarySigma620.csv"
+IO_data_file_path = "../OLD-and-Extra/DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 IO_data = IO_data[["Trial Name",
                    "Grid Re",
                    "Rossby Number",
+                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity",
                    "L_ux / M",
                    "Turbulence Intensity Uncertainty",
@@ -86,9 +87,9 @@ IO_data = IO_data[["Trial Name",
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:3]
-Y = IO_data.iloc[:, 3:5]
-Y_Uncertainty = IO_data.iloc[:, 5:7]
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4:6]
+Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -117,7 +118,7 @@ train_data_size = np.zeros(n_steps)
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 500
+    n_experiments = 20
     rel_rmse_turb_int = np.zeros(n_experiments)
     rel_rmse_L_ux = np.zeros(n_experiments)
     
@@ -138,8 +139,8 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         
         # Model Setup
         input_size, output_size = X_experiment.shape[1], Y_experiment.shape[1]
-        hidden_size = 2
-        num_epochs = 1000
+        hidden_size = 4
+        num_epochs = 500
         learning_rate = 1e-3
         batch_size = 16
         device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))

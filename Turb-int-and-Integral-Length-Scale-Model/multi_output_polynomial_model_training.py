@@ -68,15 +68,16 @@ IO_data = IO_data[["Trial Name",
                    "Rossby Number",
                    "Turbulence Intensity",
                    "L_ux / M",
+                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity Uncertainty",
                    "L_ux Uncertainty"]]
 
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:3]
-Y = IO_data.iloc[:, 3:5]
-Y_Uncertainty = IO_data.iloc[:, 5:7]
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4:6]
+Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -91,7 +92,7 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 ## Training Setup
 ###################################################################
-polynomial_order = 5
+polynomial_order = 2
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 64
 num_epochs = 1000

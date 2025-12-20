@@ -69,12 +69,13 @@ seed = 42
 #                        "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
 #                        })
 
-IO_data_file_path = "../OLD-and-Extra/DataSummarySigma620.csv"
+IO_data_file_path = "../OLD-and-Extra/DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 IO_data = IO_data[["Trial Name",
                    "Grid Re",
                    "Rossby Number",
+                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity",
                    "L_ux / M",
                    "Turbulence Intensity Uncertainty",
@@ -83,8 +84,8 @@ IO_data = IO_data[["Trial Name",
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:3]
-Y = IO_data.iloc[:, 3:5]
+X = IO_data.iloc[:, 1:4]
+Y = IO_data.iloc[:, 4:6]
 # Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
@@ -105,7 +106,7 @@ kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
 X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
 
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
-hidden_size = 2
+hidden_size = 3
 num_epochs = 1000
 learning_rate = 1e-3
 batch_size = 16
