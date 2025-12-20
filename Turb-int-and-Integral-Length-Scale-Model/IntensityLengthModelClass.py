@@ -14,8 +14,8 @@ class IntensityLengthModel:
     
     # Define the model architecture
     # IMPORTANT: Must match the saved model's architecture
-    input_size = 2
-    hidden_size = 2
+    input_size = 3
+    hidden_size = 3
     output_size = 2
     
     def __init__(self, modelPath : str, scaler1Path : str, scaler2Path : str):
@@ -27,14 +27,13 @@ class IntensityLengthModel:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # IMPORTANT: make sure the model architecture matches what was used in training
-        self.model = nn.Sequential(nn.Linear(self.input_size, self.hidden_size),
-                              nn.BatchNorm1d(self.hidden_size),
-                              nn.LeakyReLU(),
-                              nn.Linear(self.hidden_size, self.hidden_size // 2),
-                              nn.BatchNorm1d(self.hidden_size // 2),
-                              nn.LeakyReLU(),
-                              nn.Linear(self.hidden_size // 2, self.output_size)
-                              ).to(self.device)
+        self.model = nn.Sequential(
+                             nn.Linear(self.input_size, self.hidden_size),
+                             nn.Tanh(),
+                             nn.Linear(self.hidden_size, 2),
+                             nn.Tanh(),
+                             nn.Linear(2, self.output_size),
+                             ).to(self.device)
         
         # Load the saved model weights
         self.model.load_state_dict(torch.load(modelPath, map_location=self.device, weights_only=False))
@@ -50,7 +49,7 @@ class IntensityLengthModel:
 
     # %% Methods
     
-    def evaluate(self, Re_M : np.ndarray, Ro : np.ndarray):
+    def evaluate(self, Re_M : np.ndarray, Ro : np.ndarray, sigma : np.ndarray):
         
         if Re_M.shape != Ro.shape :
             raise("Grid motion parameters must have the same shape")
@@ -59,8 +58,9 @@ class IntensityLengthModel:
 
         Re_M = Re_M.reshape(-1,1)
         Ro = Ro.reshape(-1,1)
+        sigma = sigma.reshape(-1,1)
 
-        input_parameters = np.column_stack((Re_M, Ro))
+        input_parameters = np.column_stack((Re_M, Ro, sigma))
         scaled_input_parameters = self.scaler1.transform(input_parameters)
         input_tensor = torch.tensor(scaled_input_parameters, dtype=torch.float32, requires_grad=False).to(self.device)
         

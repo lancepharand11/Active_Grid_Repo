@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import copy
 
 
-def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_rate=1e-3, batch_size=16, device=None, plot=False):
+def train_nn_kfold(X, Y, k_folds=5, hidden_size=3, num_epochs=1000, learning_rate=1e-3, batch_size=16, device=None, plot=False):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
@@ -19,13 +19,12 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
     input_size, output_size = X.shape[1], Y.shape[1]
 
     def get_model():
-        return nn.Sequential(nn.Linear(input_size, hidden_size),
-                             nn.BatchNorm1d(hidden_size),
-                             nn.LeakyReLU(),
-                             #nn.Linear(hidden_size, hidden_size // 2),
-                             #nn.BatchNorm1d(hidden_size // 2),
-                             nn.LeakyReLU(),
-                             nn.Linear(hidden_size, output_size)
+        return nn.Sequential(
+                             nn.Linear(input_size, hidden_size),
+                             nn.Tanh(),
+                             nn.Linear(hidden_size, 2),
+                             nn.Tanh(),
+                             nn.Linear(2, output_size),
                              ).to(device)
 
     fold_results = []
@@ -43,8 +42,11 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
         scaler_x = MinMaxScaler(feature_range=(-1, 1))
         scaler_y = MinMaxScaler(feature_range=(-1, 1))
 
-        x_train = scaler_x.fit_transform(X[train_idx])
-        y_train = scaler_y.fit_transform(Y[train_idx])
+        scaler_x = scaler_x.fit(X)
+        scaler_y = scaler_y.fit(Y)
+        
+        x_train = scaler_x.transform(X[train_idx])
+        y_train = scaler_y.transform(Y[train_idx])
         x_val = scaler_x.transform(X[val_idx])
         y_val = scaler_y.transform(Y[val_idx])
 
@@ -52,13 +54,10 @@ def train_nn_kfold(X, Y, k_folds=5, hidden_size=64, num_epochs=1000, learning_ra
         y_train = torch.tensor(y_train, dtype=torch.float32).to(device)
         x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
         y_val = torch.tensor(y_val, dtype=torch.float32).to(device)
-        
-        # Avoid error caused by batches with one sample
-        if train_idx.size % batch_size == 1:
-            batch_size = batch_size - 1
+
 
         train_dataset = TensorDataset(x_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True)
 
         model = get_model()
         training_crit = nn.SmoothL1Loss()
