@@ -33,7 +33,6 @@ def shaftSpeedStdPlot(turb_data : pd.DataFrame):
     
     # Turbulence intensity as percentage
     turb_data["Turbulence Intensity Percent"] = turb_data["Turbulence Intensity"]*100
-    turb_data["Shaft Speed Standard Deviation * M^2 / nu"] = np.multiply(turb_data["Shaft Speed Standard Deviation * M / u_inf"], turb_data["Grid Re"])
     constant_re_10000 = (turb_data["Grid Re"] > 5000) & (turb_data["Grid Re"] < 15000)
     constant_re_20000 = (turb_data["Grid Re"] > 15000) & (turb_data["Grid Re"] < 25000)
     constant_re_30000 = (turb_data["Grid Re"] > 25000) & (turb_data["Grid Re"] < 35000)
