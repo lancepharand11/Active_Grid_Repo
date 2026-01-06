@@ -17,8 +17,9 @@ class IntensityLengthModel:
     input_size = 3
     hidden_size = 3
     output_size = 2
+    n_hidden_layers = 2
     
-    def __init__(self, modelPath : str, scaler1Path : str, scaler2Path : str):
+    def __init__(self, modelPath : str, scaler1Path : str, scaler2Path : str, n_hidden_layers : int):
 
         ###################################################################
         ## Load Trained Model and Scalers
@@ -29,11 +30,15 @@ class IntensityLengthModel:
         # IMPORTANT: make sure the model architecture matches what was used in training
         self.model = nn.Sequential(
                              nn.Linear(self.input_size, self.hidden_size),
-                             nn.Tanh(),
-                             nn.Linear(self.hidden_size, 2),
-                             nn.Tanh(),
-                             nn.Linear(2, self.output_size),
-                             ).to(self.device)
+                             nn.Tanh()).to(self.device)
+        
+        # Add the hidden layers
+        hiddenLayer = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.Tanh())
+        for layer in range(self.n_hidden_layers-1):
+            self.model.extend(hiddenLayer)
+        
+        # Add the output layer
+        self.model.append(nn.Linear(self.hidden_size, self.output_size))
         
         # Load the saved model weights
         self.model.load_state_dict(torch.load(modelPath, map_location=self.device, weights_only=False))

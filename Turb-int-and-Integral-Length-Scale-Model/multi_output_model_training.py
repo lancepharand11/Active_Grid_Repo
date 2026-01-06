@@ -8,24 +8,17 @@
 ###################################################################
 ## Initializations and Data Loading
 ###################################################################
-import scipy.io
-import scipy.stats as stats
 import pandas as pd
-import numpy as np
 import sys
 import os
 # sys.path.insert(0, os.path.abspath('../'))
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 from Turbulence_Parameters_class import Turbulence_Parameters
-from train_nn_kfold import train_nn_kfold
+from train_nn import train_nn
 from pathlib import Path
 import joblib
-from torch.utils.data import DataLoader, TensorDataset
-import matplotlib.pyplot as plt
-from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from torch import nn, optim
+from sklearn.model_selection import train_test_split
 import torch
 
 # dataDir = Path('F:\Lance\Active_Grid_Model_Data')
@@ -101,39 +94,39 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 # %% Training Setup
 ###################################################################
-k_folds = 5
-kf = KFold(n_splits=k_folds, shuffle=True)  # NOTE: no seed used
-X_train, X_test, Y_train, Y_test = train_test_split(X_all, Y_all, test_size=0.15, random_state=seed)
+X_train, X_val, Y_train, Y_val = train_test_split(X_all, Y_all, test_size=0.10, random_state=seed)
 
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 3
-num_epochs = 1000
+n_hidden_layers = 1
+num_epochs = 10000
 learning_rate = 1e-3
 batch_size = 16
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
 # Train the model on the data from the experiment
-(best_overall_weights, best_scaler_x, best_scaler_y,
-        best_overall_train_idx, best_overall_val_idx,
-        best_overall_rmse, best_norm_rmse_turb_int, 
-        best_norm_rmse_L_ux, fold_results, mse_crit, final_model) = train_nn_kfold(X_train, Y_train,
-                   k_folds=k_folds, hidden_size=hidden_size,
-                   num_epochs=num_epochs, learning_rate=learning_rate,
+(weights, scaler_x, scaler_y,
+        rmse, mse_crit, model) = train_nn(X_all, Y_all,                                                      
+                   hidden_size=hidden_size,
+                   n_hidden_layers=n_hidden_layers,
+                   max_epochs=num_epochs, 
+                   min_epochs=100,
+                   learning_rate=learning_rate,
                    batch_size=batch_size, device=device, plot=True)
                                                             
 
 with torch.no_grad():
-    x_test_scaled = best_scaler_x.transform(X_test.numpy())
+    x_test_scaled = scaler_x.transform(X_val.numpy())
     x_test_tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(device)
-    y_test_pred = final_model(x_test_tensor)
-    y_test_pred_unsc = torch.tensor(best_scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
-    y_test_unsc = torch.tensor(Y_test.numpy())
+    y_test_pred = model(x_test_tensor)
+    y_test_pred_unsc = torch.tensor(scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
+    y_test_unsc = torch.tensor(Y_val.numpy())
     test_rmse = torch.sqrt(mse_crit(y_test_pred_unsc, y_test_unsc)).item()
 print(f"Test set RMSE: {test_rmse:.4f}")
 
 
 ###################################################################
-# %% Save Best Model
+# %% Save Model
 ###################################################################
 from datetime import datetime
 unique_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -148,28 +141,18 @@ scaler_x_fname = os.path.join(out_dir, f"scaler_x_{unique_id}.pkl")
 scaler_y_fname = os.path.join(out_dir, f"scaler_y_{unique_id}.pkl")
 log_fname = os.path.join(out_dir, "rmse_results.txt")
 
-torch.save(best_overall_weights, model_fname)
-joblib.dump(best_scaler_x, scaler_x_fname)
-joblib.dump(best_scaler_y, scaler_y_fname)
+torch.save(weights, model_fname)
+joblib.dump(scaler_x, scaler_x_fname)
+joblib.dump(scaler_y, scaler_y_fname)
 
-
-np.savetxt(train_idx_fname, best_overall_train_idx, delimiter=",", fmt="%f")
-np.savetxt(val_idx_fname, best_overall_val_idx, delimiter=",", fmt="%f")
-
-print(f"\nSaved best model weights to: {model_fname}")
+print(f"\nSaved model weights to: {model_fname}")
 print(f"Saved input scaler to: {scaler_x_fname}")
 print(f"Saved output scaler to: {scaler_y_fname}")
-
-print(f"Saved training data indices to: {train_idx_fname}")
-print(f"Saved validation data indices to: {val_idx_fname}")
 
 # Log results
 log_line = (f"{unique_id}\t"
             f"{os.path.basename(model_fname)}\t"
             f"{test_rmse:.4f}\t"  # on the test set
-            f"{best_overall_rmse:.4f}\t"  # the below rmse are on the validation set 
-            f"{best_norm_rmse_turb_int:.4f}\t"
-            f"{best_norm_rmse_L_ux:.4f}\n"
             )
 
 with open(log_fname, "a") as f:

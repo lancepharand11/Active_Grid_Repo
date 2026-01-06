@@ -95,7 +95,7 @@ Y_all = torch.tensor(Y_all.values, dtype=torch.float32)
 ###################################################################
 ## Experiment Simulation Setup
 ###################################################################
-polynomial_order = 1
+polynomial_order = 2
 min_train_fraction = 0.2
 max_train_fraction = 0.90
 n_steps = 10
@@ -103,8 +103,8 @@ n_steps = 10
 test_fraction = 0.1
 
 overall_fraction_acceptable = np.zeros(n_steps)
-overall_rel_rmse_turb_int = np.zeros(n_steps)
-overall_norm_rmse_Lux = np.zeros(n_steps)
+overall_rmse_turb_int = np.zeros(n_steps)
+overall_rmse_Lux = np.zeros(n_steps)
 train_data_size = np.zeros(n_steps)
 
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
@@ -119,8 +119,8 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
     best_rel_rmse_L_ux = None
     best_scaler_x = None
     best_scaler_y = None
-    rel_rmse_turb_int = np.zeros(n_experiments)
-    rel_rmse_L_ux = np.zeros(n_experiments)
+    rmse_turb_int = np.zeros(n_experiments)
+    rmse_L_ux = np.zeros(n_experiments)
 
     for experiment, (experiment_train_idx, experiment_test_idx) in enumerate(SS.split(X_all)):
         
@@ -149,14 +149,14 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         residuals = y_val_unscaled_np - y_val_pred_unscaled_np
 
         # Relative RMSE
-        rel_err_turb_int = (y_val_pred_unscaled_np[:, 0] - y_val_unscaled_np[:, 0]) / y_val_unscaled_np[:, 0]
-        rel_err_L_ux = (y_val_pred_unscaled_np[:, 1] - y_val_unscaled_np[:, 1]) / y_val_unscaled_np[:, 1]
-        rel_rmse_turb_int[experiment] = np.sqrt(np.sum(rel_err_turb_int**2) / rel_err_turb_int.size)
-        rel_rmse_L_ux[experiment] = np.sqrt(np.sum(rel_err_L_ux**2) / rel_err_L_ux.size)
+        err_turb_int = (y_val_pred_unscaled_np[:, 0] - y_val_unscaled_np[:, 0])
+        err_L_ux = (y_val_pred_unscaled_np[:, 1] - y_val_unscaled_np[:, 1])
+        rmse_turb_int[experiment] = np.sqrt(np.sum(err_turb_int**2) / err_turb_int.size)
+        rmse_L_ux[experiment] = np.sqrt(np.sum(err_L_ux**2) / err_L_ux.size)
 
-        print(f"Experiment {experiment + 1} Normalized RMSEs:")
-        print(f"    Turbulence Intensity: {rel_rmse_turb_int[experiment]:.4f}")
-        print(f"    L_ux / M: {rel_rmse_L_ux[experiment]:.4f}")
+        print(f"Experiment {experiment + 1} RMSEs:")
+        print(f"    Turbulence Intensity: {rmse_turb_int[experiment]:.4f}")
+        print(f"    L_ux / M: {rmse_L_ux[experiment]:.4f}")
     
         
     # Print training data size
@@ -164,20 +164,20 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
     print(f"Number of training data points: {train_data_size[train_fraction_idx]}")
     
     # Print overall rmse for each size of training dataset
-    overall_rel_rmse_turb_int[train_fraction_idx] = np.mean(rel_rmse_turb_int)
-    print(f"Overall Tu Root-mean-square-error: {overall_rel_rmse_turb_int[train_fraction_idx]}")
-    overall_norm_rmse_Lux[train_fraction_idx] = np.mean(rel_rmse_L_ux)
-    print(f"Overall L_ux Root-mean-square-error: {overall_norm_rmse_Lux[train_fraction_idx]}")
+    overall_rmse_turb_int[train_fraction_idx] = np.sqrt(np.sum(np.square(rmse_turb_int)) / rmse_turb_int.size)
+    print(f"Overall Tu Root-mean-square-error: {overall_rmse_turb_int[train_fraction_idx]}")
+    overall_rmse_Lux[train_fraction_idx] = np.sqrt(np.sum(np.square(rmse_L_ux)) / rmse_L_ux.size)
+    print(f"Overall L_ux Root-mean-square-error: {overall_rmse_Lux[train_fraction_idx]}")
 
 
 # Plot the results
 fig, ax = plt.subplots(1,1)
-ax.plot(train_data_size,overall_rel_rmse_turb_int)
-ax.plot(train_data_size,overall_norm_rmse_Lux)
+ax.plot(train_data_size,overall_rmse_turb_int)
+ax.plot(train_data_size,overall_rmse_Lux)
 
 # Save the results for plotting later
 training_size_data = pd.DataFrame({"Size of Training Data": train_data_size,
-                                   "Tu RMS Relative Error": overall_rel_rmse_turb_int,
-                                   "L_ux RMS Relative Error": overall_norm_rmse_Lux})
+                                   "Tu RMS Error": overall_rmse_turb_int,
+                                   "L_ux RMS Error": overall_rmse_Lux})
 
 training_size_data.to_csv(f"./Training Data Size Analysis Results/Polynomial_Order{polynomial_order}.csv")

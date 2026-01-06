@@ -20,13 +20,13 @@ IO_data_file_path = "./DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 # %% Load the Model
-modelID = "20251219_170438"
+modelID = "20251224_135346"
 modelPath = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_{modelID}.pth"
 # Load the scalers
 scaler1Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_{modelID}.pkl"
 scaler2Path = f"../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_y_{modelID}.pkl"
 
-Model = IntensityLengthModel(modelPath, scaler1Path, scaler2Path)
+Model = IntensityLengthModel(modelPath, scaler1Path, scaler2Path,1)
 
 # %% Load the Indices of the validation set
 

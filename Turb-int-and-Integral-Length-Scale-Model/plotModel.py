@@ -8,11 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from IntensityLengthModelClass import IntensityLengthModel
 
-modelPath = "./Models_and_Results/best_model_20250518_113100.pth"
+modelPath = "./Models_and_Results/best_model_20251224_124907.pth"
 
 # Load the scalers
-scaler1Path = "./Models_and_Results/scaler_x_20250518_113100.pkl"
-scaler2Path = "./Models_and_Results/scaler_y_20250518_113100.pkl"
+scaler1Path = "./Models_and_Results/scaler_x_20251224_124907.pkl"
+scaler2Path = "./Models_and_Results/scaler_y_20251224_124907.pkl"
 
 NNModel = IntensityLengthModel(modelPath, scaler1Path, scaler2Path)
 
