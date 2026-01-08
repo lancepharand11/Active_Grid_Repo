@@ -23,6 +23,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from sklearn.model_selection import ShuffleSplit
 import torch
+from get_model_polynomial import get_model_polynomial
 
 dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/")
 counter = 0
@@ -95,17 +96,23 @@ Y_all = torch.tensor(Y_all.values, dtype=torch.float32)
 ###################################################################
 ## Experiment Simulation Setup
 ###################################################################
-polynomial_order = 2
 min_train_fraction = 0.2
 max_train_fraction = 0.90
 n_steps = 10
 
 test_fraction = 0.1
 
-overall_fraction_acceptable = np.zeros(n_steps)
 overall_rmse_turb_int = np.zeros(n_steps)
 overall_rmse_Lux = np.zeros(n_steps)
 train_data_size = np.zeros(n_steps)
+
+###################################################################
+## Model Setup
+###################################################################
+polynomial_order = 1
+device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+
+model = get_model_polynomial(polynomial_order)
 
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
@@ -136,7 +143,7 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         Y_test = Y_all[experiment_test_idx]
         Y_Uncertainty_test = Y_Uncertainty.iloc[experiment_test_idx]
         
-        model, scaler_x, scaler_y, train_rmse = train_polynomial_model(X_experiment, Y_experiment, polynomial_order, device)
+        scaler_x, scaler_y, train_rmse = train_polynomial_model(model, X_experiment, Y_experiment, device)
 
         x_test = scaler_x.transform(X_test)
         y_test = scaler_y.transform(Y_test)

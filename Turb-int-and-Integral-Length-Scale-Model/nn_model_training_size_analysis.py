@@ -26,6 +26,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from sklearn.model_selection import ShuffleSplit
 import torch
+from get_model import get_model
+import copy
+
+torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
+
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+
 
 dataDir = Path("C:/Users/ctoppings/surfdrive/Experimental Data/Active_Grid_Data_Lance/Selected Data")
 counter = 0
@@ -100,7 +110,7 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 
 min_train_fraction = 0.2
-max_train_fraction = 0.90
+max_train_fraction = 0.9
 n_steps = 10
 
 test_fraction = 0.1
@@ -109,10 +119,26 @@ overall_rmse_turb_int = np.zeros(n_steps)
 overall_rmse_L_ux = np.zeros(n_steps)
 train_data_size = np.zeros(n_steps)
 
+###################################################################
+## Model Setup
+###################################################################
+input_size, output_size = 3, 2
+hidden_size = 3
+n_hidden_layers = 1
+max_epochs = 10000
+min_epochs = 200
+learning_rate = 1e-3
+batch_size = 16
+device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+
+model = get_model(input_size, hidden_size, output_size, n_hidden_layers, device)
+model_compiled = torch.compile(model)
+model_initial_parameters = copy.deepcopy(model_compiled.state_dict())
+
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 500
+    n_experiments = 20
     rmse_turb_int = np.zeros(n_experiments)
     rmse_L_ux = np.zeros(n_experiments)
     
@@ -131,19 +157,11 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         Y_test = Y_all[experiment_test_idx]
         Y_UncertaintY_test = Y_Uncertainty.iloc[experiment_test_idx]
         
-        # Model Setup
-        input_size, output_size = X_experiment.shape[1], Y_experiment.shape[1]
-        hidden_size = 3
-        n_hidden_layers = 2
-        max_epochs = 10000
-        min_epochs = 200
-        learning_rate = 1e-3
-        batch_size = 16
-        device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
-    
         # Train the model on the data from the simulated experiment
+        model_compiled.load_state_dict(model_initial_parameters)
+        
         (weights, scaler_x, scaler_y,
-                rmse, mse_crit, model) = train_nn(X_experiment, Y_experiment,
+         mse_crit) = train_nn(model_compiled, X_experiment, Y_experiment,
                            hidden_size=hidden_size,
                            max_epochs=max_epochs, 
                            min_epochs=min_epochs,
