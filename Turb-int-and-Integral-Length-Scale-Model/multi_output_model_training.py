@@ -20,6 +20,7 @@ from pathlib import Path
 import joblib
 from sklearn.model_selection import train_test_split
 import torch
+from get_model import get_model
 
 # dataDir = Path('F:\Lance\Active_Grid_Model_Data')
 dataDir = Path('D:/Active_Grid_Data_Lance/Selected Data')
@@ -31,6 +32,11 @@ Turbulence_Parameters.N_samples = 6144000
 Turbulence_Parameters.overlap = 0.5
 Turbulence_Parameters.mesh_length = 0.06096
 seed = 42
+
+
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
 
 # for file in list(dataDir.glob('*.mat')):
 #     if counter == 0:
@@ -98,19 +104,21 @@ X_train, X_val, Y_train, Y_val = train_test_split(X_all, Y_all, test_size=0.10, 
 
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
 hidden_size = 3
-n_hidden_layers = 1
+n_hidden_layers = 2
 num_epochs = 10000
 learning_rate = 1e-3
 batch_size = 16
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
+model = get_model(input_size, hidden_size, output_size, n_hidden_layers, device)
+
 # Train the model on the data from the experiment
-(weights, scaler_x, scaler_y,
-        rmse, mse_crit, model) = train_nn(X_all, Y_all,                                                      
+model_compiled = torch.compile(model)
+(weights, scaler_x, scaler_y, mse_crit) = train_nn(model_compiled, X_train, Y_train,                                                      
                    hidden_size=hidden_size,
                    n_hidden_layers=n_hidden_layers,
                    max_epochs=num_epochs, 
-                   min_epochs=100,
+                   min_epochs=200,
                    learning_rate=learning_rate,
                    batch_size=batch_size, device=device, plot=True)
                                                             
@@ -122,7 +130,7 @@ with torch.no_grad():
     y_test_pred_unsc = torch.tensor(scaler_y.inverse_transform(y_test_pred.cpu().numpy()))
     y_test_unsc = torch.tensor(Y_val.numpy())
     test_rmse = torch.sqrt(mse_crit(y_test_pred_unsc, y_test_unsc)).item()
-print(f"Test set RMSE: {test_rmse:.4f}")
+print(f"Test set MSE: {test_rmse:.4f}")
 
 
 ###################################################################

@@ -20,6 +20,7 @@ from train_polynomial_model import train_polynomial_model
 from pathlib import Path
 import joblib
 import torch
+from get_model_polynomial import get_model_polynomial
 
 dataDir = Path("/Users/Connor/Nextcloud/Experimental Data/Active_Grid_Data_Lance/")
 counter = 0
@@ -60,15 +61,15 @@ Turbulence_Parameters.mesh_length = 0.06096
 #                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
 #                         })
 
-IO_data_file_path = "../OLD-and-Extra/DataSummary.csv"
+IO_data_file_path = "../OLD-and-Extra/DataSummaryOutliersRemoved.csv"
 IO_data = pd.read_csv(IO_data_file_path)
 
 IO_data = IO_data[["Trial Name",
                    "Grid Re",
                    "Rossby Number",
+                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity",
                    "L_ux / M",
-                   "Shaft Speed Standard Deviation * M^2 / nu",
                    "Turbulence Intensity Uncertainty",
                    "L_ux Uncertainty"]]
 
@@ -77,7 +78,7 @@ IO_data = IO_data[["Trial Name",
 ###################################################################
 X = IO_data.iloc[:, 1:4]
 Y = IO_data.iloc[:, 4:6]
-Y_Uncertainty = IO_data.iloc[:, 6:8]
+# Y_Uncertainty = IO_data.iloc[:, 6:8]
 # XY = pd.concat([X, Y], axis=1)
 # z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
 # threshold = 3  # Threshold z-score
@@ -92,17 +93,15 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 ## Training Setup
 ###################################################################
+
 polynomial_order = 2
 input_size, output_size = X_all.shape[1], Y_all.shape[1]
-hidden_size = 64
-num_epochs = 1000
-learning_rate = 1e-3
-batch_size = 16
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
+model = get_model_polynomial(polynomial_order)
 
 # Train the model on the data from the experiment
-model, scaler_x, scaler_y, train_rmse = train_polynomial_model(X_all, Y_all, polynomial_order, device)
+scaler_x, scaler_y, train_rmse = train_polynomial_model(model, X_all, Y_all, device)
 
 ###################################################################
 ## Save Model
