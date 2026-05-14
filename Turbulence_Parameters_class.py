@@ -17,7 +17,7 @@ import scipy.signal as signal
 
 class Turbulence_Parameters:
     # MUST BE SET by user
-    fs = 0 # Sampling frequency
+    fs = 25600 # Sampling frequency
     num_sections = 5  # Default number of sections for psd integration
     mesh_length = 0.06096  # [m] grid mesh length
     alpha = 0.00332509 # Assumed calibration uncertainty parameter alpha (See Yavuzkurt 1985)
@@ -112,6 +112,9 @@ class Turbulence_Parameters:
     
     def get_turb_int_uncertainty(self):
         return self.turb_int_uncertainty
+    
+    def get_turb_int_precis_uncert(self):
+        return self.precis_uncert_Tu
 
     def get_L_ux_non_dim(self):
         return self.L_ux_non_dim
@@ -225,13 +228,31 @@ class Turbulence_Parameters:
         else:
             self._v_velo = new_v_velo
 
-    def calc_L_ux(self):
-        self.L_ux_non_dim = self.__Lux(self._u_velo_fluct, self.N_samples)
+    def calc_L_ux(self, length = None):
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
+            
+        self.L_ux_non_dim = self.__Lux(self._u_velo_fluct[:length], length)  
         
-    def calc_L_ux_Uncertainty(self):
+    def calc_N_eff(self, length = None):
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
+            
+        self.N_eff = length * self._freestream_velo / (self.L_ux_non_dim * self.mesh_length *self.fs)
+        
+    def calc_L_ux_Uncertainty(self, length = None):
         # Bootstrap(-like) method on 5 shorter segments
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
+            
         NSegments = 5
-        SegmentLength = self.N_samples // NSegments
+        SegmentLength = length // NSegments
         
         LuxExpFit = np.zeros(NSegments)
 
@@ -294,21 +315,34 @@ class Turbulence_Parameters:
         self.zero_freq = self.log_freq_non_dim[0]
         self.e_zero_freq = self.log_E_u[2]
         
-    def __calc_q_var(self):
-        u_temp_data = np.array(self._u_velo).T
-        v_temp_data = np.array(self._v_velo).T
+    def __calc_q_var(self, length = None):
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
+            
+        u_temp_data = np.array(self._u_velo[:length]).T
+        v_temp_data = np.array(self._v_velo[:length]).T
         q_var = np.var(u_temp_data, axis=0) + (2 * np.var(v_temp_data, axis=0))
         return q_var
 
-    def calc_turb_intensity(self):
+    def calc_turb_intensity(self, length = None):
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
 
-        self.turb_int = np.sqrt(self.__calc_q_var()) / (self._freestream_velo * math.sqrt(3))
+        self.turb_int = np.sqrt(self.__calc_q_var(length)) / (self._freestream_velo * math.sqrt(3))
 
-    def calc_turb_int_uncertainty(self):
-
+    def calc_turb_int_uncertainty(self, length = None):
+        # length argument can be used to calculate the L_ux on a shorter
+        # dataset. This is used for the convergence study
+        if length is None:
+            length = self.N_samples
+            
         # Calculate mean and RMS of U
-        u_rms = np.std(self._u_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
-        v_rms = np.std(self._v_velo, ddof=0).item()  # Use ddof=0 for population standard deviation
+        u_rms = np.std(self._u_velo[:length], ddof=0).item()  # Use ddof=0 for population standard deviation
+        v_rms = np.std(self._v_velo[:length], ddof=0).item()  # Use ddof=0 for population standard deviation
 
         # Relative approximation errors
         rel_error_u_mean = self.k**2/2*(v_rms / self._freestream_velo)**2 # Only account for w component because we are using an x-wire
@@ -318,9 +352,21 @@ class Turbulence_Parameters:
         rel_uncert_u_rms = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_mean  # Yavuzkurt: add instrument uncertainty and approximation error
         rel_uncert_u_mean = np.sqrt(self.alpha**2 + self.beta**2) + rel_error_u_rms
 
-         # Propagate uncertainty to Tu
+        # Propagate uncertainty to Tu
         rel_uncert_Tu = np.sqrt(rel_uncert_u_rms**2 + rel_uncert_u_mean**2).item()
         self.turb_int_uncertainty = 2 * self.turb_int * rel_uncert_Tu  # 95% confidence
+        
+        # Precision uncertainty
+        self.calc_N_eff(length)
+        precis_uncert_u = stats.t.ppf(0.975,self.N_eff-1) * u_rms / np.sqrt(self.N_eff)
+        # precis_uncert_v = stats.t.ppf(0.975,self.N_eff-1) * v_rms / np.sqrt(self.N_eff)
+        
+        precis_uncert_u_var = stats.t.ppf(0.975,self.N_eff-1) * u_rms**2 * np.sqrt(2/(self.N_eff-1))
+        precis_uncert_v_var = stats.t.ppf(0.975,self.N_eff-1) * v_rms**2 * np.sqrt(2/(self.N_eff-1))
+        
+        precis_uncert_q_var = np.sqrt(precis_uncert_u_var**2 + (2*precis_uncert_v_var)**2)
+        self.precis_uncert_Tu = np.sqrt((1/(2*np.sqrt(3)*self._freestream_velo)*precis_uncert_q_var)**2
+                                   + (np.sqrt(self.__calc_q_var()/3)/(self._freestream_velo**2)*precis_uncert_u)**2)
         
     def calc_anisotropy(self):
         u_temp_data = np.array(self._u_velo).T

@@ -28,6 +28,7 @@ from sklearn.model_selection import ShuffleSplit
 import torch
 from get_model import get_model
 import copy
+import math
 
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
@@ -124,7 +125,7 @@ train_data_size = np.zeros(n_steps)
 ###################################################################
 input_size, output_size = 3, 2
 hidden_size = 3
-n_hidden_layers = 1
+n_hidden_layers = 2
 max_epochs = 10000
 min_epochs = 200
 learning_rate = 1e-3
@@ -138,7 +139,7 @@ model_initial_parameters = copy.deepcopy(model_compiled.state_dict())
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = 20
+    n_experiments = np.min([500,math.comb(len(IO_data),np.int64(train_fraction*len(IO_data)))])
     rmse_turb_int = np.zeros(n_experiments)
     rmse_L_ux = np.zeros(n_experiments)
     

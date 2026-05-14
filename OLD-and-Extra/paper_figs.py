@@ -21,6 +21,8 @@ from Turbulence_Parameters_class import Turbulence_Parameters
 from dataOverviewPlot import dataOverviewPlot
 from shaftSpeedStdPlot import shaftSpeedStdPlot
 from inputOutputHeatmapPlot import inputOutputHeatmapPlot
+from plot_statistics_convergence import plot_statistics_convergence
+from plot_turbulence_spectra import plot_turbulence_spectra
 
 import seaborn as sns
 
@@ -74,6 +76,7 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Shaft Speed Standard Deviation * M / u_inf": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
                         "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
                         "Turbulence Intensity Uncertainty": (turb_obj.get_turb_int_uncertainty() for turb_obj in turb_objects),
+                        "Turbulence Intensity Precision Uncertainty": (turb_obj.get_turb_int_precis_uncert() for turb_obj in turb_objects),
                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
                         "L_ux Uncertainty": (turb_obj.get_L_ux_uncertainty() for turb_obj in turb_objects),
                         "E_11 / (M * U) [Non-Dim PSD]": (turb_obj.get_E_u().tolist() for turb_obj in turb_objects),
@@ -85,6 +88,13 @@ IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in
                         "Epsilon": (turb_obj.get_epsilon() for turb_obj in turb_objects)
                         })
 
+# Dimensional data for the experiments overview table in the paper
+IO_data_dimensional = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
+                        "u_\infty": (turb_obj.get_freestream_velo() for turb_obj in turb_objects),
+                        "Omega": (turb_obj.get_Rossby_num() * turb_obj.get_freestream_velo() / Turbulence_Parameters.mesh_length for turb_obj in turb_objects),
+                        "sigma_omega": (turb_obj.get_shaft_speed_std_dev() * turb_obj.get_freestream_velo() / Turbulence_Parameters.mesh_length for turb_obj in turb_objects),
+                        })
+
 # Normalise the Shaft Speed Standard Deviation by the viscous time scale
 IO_data["Shaft Speed Standard Deviation * M^2 / nu"] = np.multiply(IO_data["Shaft Speed Standard Deviation * M / u_inf"], IO_data["Grid Re"])
 
@@ -93,7 +103,9 @@ IO_data_to_save = IO_data[["Trial Name", "Grid Re", "Rossby Number",
                  "Shaft Speed Standard Deviation * M / u_inf",
                  "Shaft Speed Standard Deviation * M^2 / nu",
                  "Turbulence Intensity",
-                 "Turbulence Intensity Uncertainty", "L_ux / M",
+                 "Turbulence Intensity Uncertainty", 
+                 "Turbulence Intensity Precision Uncertainty",
+                 "L_ux / M",
                  "L_ux Uncertainty","Anisotropy",
                  "Re_lambda",
                  "Epsilon"]]
@@ -118,7 +130,7 @@ dataComparisonFigure.savefig(dataComparisonFigure_FileName,format="eps")
 ###################################################################
 
 shaftSpeedStdFigure = shaftSpeedStdPlot(IO_data)
-shaftSpeedStdFigure_FileName = "../Figures/shaftSpeedStd.eps"
+shaftSpeedStdFigure_FileName = "../Figures/ShaftSpeedStd.eps"
 shaftSpeedStdFigure.savefig(shaftSpeedStdFigure_FileName,format="eps")
 
 ###################################################################
@@ -128,4 +140,16 @@ shaftSpeedStdFigure.savefig(shaftSpeedStdFigure_FileName,format="eps")
 inputOutputHeatmapFigure = inputOutputHeatmapPlot(IO_data)
 inputOutputHeatmapFigure_FileName = "../Figures/inputOutputHeatmap.eps"
 inputOutputHeatmapFigure.savefig(inputOutputHeatmapFigure_FileName,format="eps")
+
+###################################################################
+# %% Convergence Study
+###################################################################
+
+plot_statistics_convergence(IO_data, dataDir)
+
+###################################################################
+# %% Turbulence Spectra
+###################################################################
+
+plot_turbulence_spectra(IO_data, dataDir)
 

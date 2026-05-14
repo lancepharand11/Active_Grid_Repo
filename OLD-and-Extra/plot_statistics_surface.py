@@ -6,7 +6,7 @@ import matplotlib as mpl
 
 def plot_statistics_surface(turb_data, nu=1.5e-5):
     """
-    Plots an overview of turbulence data and comparison with previous studies.
+    Plots an overview of turbulence data.
     Args:
         turb_data (pd.DataFrame): DataFrame containing turbulence data.
         nu (float): Kinematic viscosity [m^2/s]. Default is 1.5e-5.
@@ -14,7 +14,7 @@ def plot_statistics_surface(turb_data, nu=1.5e-5):
         matplotlib.figure.Figure: The resulting figure object.
     """
 
-    # Create figure with 2x2 layout
+    # Create figure with 4x1 layout
     fig, axs = plt.subplots(4, 1, figsize=(5.8, 5.8 * 1.2))
     axs = axs.flatten()
     
@@ -26,11 +26,11 @@ def plot_statistics_surface(turb_data, nu=1.5e-5):
     for i, ax in enumerate(axs):
         ax.text(0.02, 0.95, subfig_labels[i], transform=ax.transAxes, fontsize=10, va='top', ha='left', fontweight='bold')
 
-    # Shaft Speed Standard Deviation * M^2/nu
-    turb_data["Shaft Speed Standard Deviation * M^2/nu"] = np.multiply(turb_data["Shaft Speed Standard Deviation * M / u_inf"], turb_data["Grid Re"])
+    # Shaft Speed Standard Deviation * nu/M^2
+    turb_data["Shaft Speed Standard Deviation * M^2 / nu"] = np.multiply(turb_data["Shaft Speed Standard Deviation * M / u_inf"], turb_data["Grid Re"])
 
     # Select Shaft Speed Standard Deviation
-    turb_data_for_contour = turb_data[turb_data["Shaft Speed Standard Deviation * M^2/nu"] > 0]
+    turb_data_for_contour = turb_data[np.abs(turb_data["Shaft Speed Standard Deviation * M^2 / nu"]-620)<1]
     
     # Tu vs Ro and Re_M
     scatter_Tu = axs[0].scatter(turb_data_for_contour["Grid Re"].to_numpy(),

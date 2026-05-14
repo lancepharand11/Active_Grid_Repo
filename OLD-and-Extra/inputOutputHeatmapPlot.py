@@ -7,6 +7,7 @@ Created on Sat Dec  6 13:12:49 2025
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 def inputOutputHeatmapPlot(IO_data):
     
@@ -34,8 +35,8 @@ def inputOutputHeatmapPlot(IO_data):
                      r"$\sigma_\Omega M^2/\nu$",
                      r"$Tu$",
                      r"$L_{ux}/M$"
-                     #r"$\sqrt{\overline{u'^2}/\overline{v'^2}}$",
-                     #r"$\textrm{Re}_{\lambda}$"
+                     r"$\sqrt{\overline{u'^2}/\overline{v'^2}}$",
+                     r"$\textrm{Re}_{\lambda}$"
                      ]
     
     
@@ -47,7 +48,8 @@ def inputOutputHeatmapPlot(IO_data):
                 yticklabels=heatmapLabels,
                 cbar_kws=dict(label="Correlation Coefficient"),
                 ax=axs,
-                square=True)
+                square=True,
+                cmap=cm.plasma)
     
     plt.show()
     return fig
