@@ -28,6 +28,7 @@ from sklearn.model_selection import ShuffleSplit
 import torch
 from get_model import get_model
 import copy
+import mat73
 import math
 
 torch.manual_seed(0)
@@ -36,73 +37,22 @@ torch.cuda.manual_seed_all(0)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+hearst_ro = mat73.loadmat("Hearst2015_Ro.mat")
+hearst_u = mat73.loadmat("Hearst2015_U.mat")
 
+IO_data_ro = pd.DataFrame(hearst_ro)
+IO_data_u = pd.DataFrame(hearst_u)
 
-dataDir = Path("C:/Users/ctoppings/surfdrive/Experimental Data/Active_Grid_Data_Lance/Selected Data")
-counter = 0
-turb_objects = []
-Turbulence_Parameters.fs = 25600
-Turbulence_Parameters.N_samples = 6144000
-Turbulence_Parameters.overlap = 0.5
-Turbulence_Parameters.mesh_length = 0.06096
+IO_data_ro = IO_data_ro[['Re_M','Ro','omega','Tu','L_ux']]
+IO_data_u = IO_data_u[['Re_M','Ro','omega','Tu','L_ux']]
 
-# for file in list(dataDir.glob('*.mat')):
-#     if counter == 0:
-#         time_stamps = scipy.io.loadmat(file, variable_names=['timeStamps'], squeeze_me=True, mat_dtype=True)
-#     counter += 1
-    
-#     Ro_string = file.stem.split("_")[3]
-#     if Ro_string == '-':
-#         continue
-#     file_Ro = float(Ro_string)
-#     file_shaftSpeedSTD = float(file.stem.split("_")[5])
-    
-#     mat_u = scipy.io.loadmat(file, variable_names=['u'], squeeze_me=True, mat_dtype=True)
-#     mat_v = scipy.io.loadmat(file, variable_names=['v'], squeeze_me=True, mat_dtype=True)
-#     temp_turb_obj = Turbulence_Parameters(filename=file.stem, u_velo=mat_u['u'], v_velo=mat_v['v'],
-#                                           freestream_velo=np.mean(mat_u['u'][4000000:]), Rossby_num=file_Ro,
-#                                           shaft_speed_std_dev=file_shaftSpeedSTD)
-#     temp_turb_obj.filter_velo()
-#     temp_turb_obj.calc_L_ux()
-#     temp_turb_obj.calc_turb_intensity()
-#     turb_objects.append(temp_turb_obj)
-    
-#     print(f"Loading file {counter}")
-
-# IO_data = pd.DataFrame({"Trial Name": (turb_obj.get_trial_name() for turb_obj in turb_objects),
-#                         "Grid Re": (turb_obj.get_grid_Re() for turb_obj in turb_objects),
-#                         "Rossby Number": (turb_obj.get_Rossby_num() for turb_obj in turb_objects),
-#                         "Shaft Speed Standard Deviation * M / U": (turb_obj.get_shaft_speed_std_dev() for turb_obj in turb_objects),
-#                         "Turbulence Intensity": (turb_obj.get_turb_int() for turb_obj in turb_objects),
-#                         "L_ux / M": (turb_obj.get_L_ux_non_dim() for turb_obj in turb_objects),
-#                         })
-
-IO_data_file_path = "../OLD-and-Extra/DataSummaryOutliersRemoved.csv"
-IO_data = pd.read_csv(IO_data_file_path)
-
-IO_data = IO_data[["Trial Name",
-                   "Grid Re",
-                   "Rossby Number",
-                   "Shaft Speed Standard Deviation * M^2 / nu",
-                   "Turbulence Intensity",
-                   "L_ux / M",
-                   "Turbulence Intensity Uncertainty",
-                   "L_ux Uncertainty"]]
+IO_data = pd.concat([IO_data_ro,IO_data_u])
 
 ###################################################################
 ## Preprocessing
 ###################################################################
-X = IO_data.iloc[:, 1:4]
-Y = IO_data.iloc[:, 4:6]
-Y_Uncertainty = IO_data.iloc[:, 6:8]
-# XY = pd.concat([X, Y], axis=1)
-# z_scores = np.abs(stats.zscore(XY, nan_policy='omit'))
-# threshold = 3  # Threshold z-score
-# rows_with_outlier = (z_scores > threshold).any(axis=1)
-# XY_filtered = XY[~rows_with_outlier]
-
-# X_filtered = XY_filtered.iloc[:, :X.shape[1]]
-# Y_filtered = XY_filtered.iloc[:, X.shape[1]:]
+X = IO_data.iloc[:, 0:3]
+Y = IO_data.iloc[:, 3:5]
 
 X_all = torch.tensor(X.values, dtype=torch.float32)
 Y_all = torch.tensor(Y.values, dtype=torch.float32)
@@ -111,10 +61,10 @@ Y_all = torch.tensor(Y.values, dtype=torch.float32)
 ###################################################################
 
 min_train_fraction = 0.2
-max_train_fraction = 0.9
-n_steps = 10
+max_train_fraction = 0.64
+n_steps = 2
 
-test_fraction = 0.1
+test_fraction = 0.36
 
 overall_rmse_turb_int = np.zeros(n_steps)
 overall_rmse_L_ux = np.zeros(n_steps)
@@ -139,7 +89,7 @@ model_initial_parameters = copy.deepcopy(model_compiled.state_dict())
 for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fraction,max_train_fraction,n_steps)):
     
     # Number of experiments to perform for each size of simulated experimental dataset
-    n_experiments = np.min([500,math.comb(len(IO_data),np.int64(train_fraction*len(IO_data)))])
+    n_experiments = np.min([10,math.comb(len(IO_data),np.int64(train_fraction*len(IO_data)))])
     rmse_turb_int = np.zeros(n_experiments)
     rmse_L_ux = np.zeros(n_experiments)
     
@@ -151,12 +101,10 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
         # Get the subset of data for the simulated experiment
         X_experiment = X_all[experiment_train_idx]
         Y_experiment = Y_all[experiment_train_idx]
-        Y_Uncertainty_experiment = Y_Uncertainty.iloc[experiment_train_idx]
         
         # Get the subset of data for evaluation of the model
         X_test = X_all[experiment_test_idx]
         Y_test = Y_all[experiment_test_idx]
-        Y_UncertaintY_test = Y_Uncertainty.iloc[experiment_test_idx]
         
         # Train the model on the data from the simulated experiment
         model_compiled.load_state_dict(model_initial_parameters)
@@ -210,12 +158,12 @@ for train_fraction_idx, train_fraction in enumerate(np.linspace(min_train_fracti
 
 # Plot the results
 fig, ax = plt.subplots(1,1)
-ax.plot(train_data_size,overall_rmse_turb_int)
-ax.plot(train_data_size,overall_rmse_L_ux)
+ax.scatter(train_data_size,overall_rmse_turb_int)
+ax.scatter(train_data_size,overall_rmse_L_ux)
 
 # Save the results for plotting later
 training_size_data = pd.DataFrame({"Size of Training Data": train_data_size,
                                    "Tu RMS Error": overall_rmse_turb_int,
                                    "L_ux RMS Error": overall_rmse_L_ux})
 
-training_size_data.to_csv(f"./Training Data Size Analysis Results/Neural Network {n_hidden_layers}-Layer.csv")
+training_size_data.to_csv(f"./Training Data Size Analysis Results/Neural Network {n_hidden_layers}-Layer-Hearst.csv")

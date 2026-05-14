@@ -3,51 +3,91 @@ import numpy as np
 
 def shaftSpeedStdPlot(turb_data : pd.DataFrame):
     
-    import mat73
     import matplotlib.pyplot as plt
     import matplotlib.markers as mkr
+    import matplotlib.colors as mcolors
+    import matplotlib.cm as cm
+    import sys
+    import os
+    sys.path.insert(0, os.path.abspath('../Turb-int-and-Integral-Length-Scale-Model'))
+    import IntensityLengthModelClass
+    import IntensityLengthPolynomialModelClass
     
-    # Load .mat files of previous studies
-    # hearst_ro = mat73.loadmat("Hearst2015_Ro.mat")
-    # hearst_u = mat73.loadmat("Hearst2015_U.mat")
-    # larssen = mat73.loadmat("Larssen2011.mat")
-    # makita = mat73.loadmat("Makita1991.mat")
-    
-    # Mesh Size
-    # hearst_M = 0.08 # [m]
-    # larssen_M = 0.21 # [m]
-    # makita_M = 0.046 # [m]
-    M = 0.061 # [m]
-    
-    # Kinematic viscosity
-    nu = 1.5e-5  # [m^2/s]
-    
-    # hearst_marker = mkr.MarkerStyle('o',fillstyle="none")
-    # larssen_marker = mkr.MarkerStyle('*',fillstyle="none")
-    # makita_marker = mkr.MarkerStyle('s',fillstyle="none")
     present_marker = mkr.MarkerStyle('^',fillstyle="none")
 
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.family'] = 'Times New Roman'
     plt.rcParams['font.size'] = 10;
     
+    # Reynolds Numbers
+    re = np.linspace(10000, 50000, 5)
+    norm = mcolors.Normalize(vmin=re.min(), vmax=re.max())
+    cmap = cm.viridis
+    
+    # %% Neural Network Model
+    nnModelPath = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_20260112_171956.pth"
+    # Load the scalers
+    nnScaler1Path = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_20260112_171956.pkl"
+    nnScaler2Path = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_y_20260112_171956.pkl"
+
+    # %% Polynomial Model
+    polyModelPath = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/best_model_20260112_172128.pth"
+    # Load the scalers
+    polyScaler1Path = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_x_20260112_172128.pkl"
+    polyScaler2Path = "../Turb-int-and-Integral-Length-Scale-Model/Models_and_Results/scaler_y_20260112_172128.pkl"
+
+    # %%
+    nnModel = IntensityLengthModelClass.IntensityLengthModel(nnModelPath, nnScaler1Path, nnScaler2Path,1)
+    polyModel = IntensityLengthPolynomialModelClass.IntensityLengthModel(polyModelPath, polyScaler1Path, polyScaler2Path)
+    
+    # %% Evaluate the models
+
+    # Choose Shaft Speed Standard Deviation * M^2 / nu
+    sigma = np.linspace(20,700,100)
+    
+    # Choose Rossby Number
+    Ro = np.ones(sigma.shape)*30
+
+    # Evaluate the model for Re_M = 10000
+    Re_M_Const_10000 = np.ones(sigma.shape)*10000
+    Re_M_Const_20000 = np.ones(sigma.shape)*20000
+    Re_M_Const_30000 = np.ones(sigma.shape)*30000
+    Re_M_Const_40000 = np.ones(sigma.shape)*40000
+    Re_M_Const_50000 = np.ones(sigma.shape)*50000
+
+    Tu_Re_M_Const_10000_NN, L_ux_Re_M_Const_10000_NN = nnModel.evaluate(Re_M_Const_10000, Ro, sigma)
+    Tu_Re_M_Const_10000_Poly, L_ux_Re_M_Const_10000_Poly = polyModel.evaluate(Re_M_Const_10000, Ro, sigma)
+    
+    Tu_Re_M_Const_20000_NN, L_ux_Re_M_Const_20000_NN = nnModel.evaluate(Re_M_Const_20000, Ro, sigma)
+    Tu_Re_M_Const_20000_Poly, L_ux_Re_M_Const_20000_Poly = polyModel.evaluate(Re_M_Const_20000, Ro, sigma)
+    
+    Tu_Re_M_Const_30000_NN, L_ux_Re_M_Const_30000_NN = nnModel.evaluate(Re_M_Const_30000, Ro, sigma)
+    Tu_Re_M_Const_30000_Poly, L_ux_Re_M_Const_30000_Poly = polyModel.evaluate(Re_M_Const_30000, Ro, sigma)
+    
+    Tu_Re_M_Const_40000_NN, L_ux_Re_M_Const_40000_NN = nnModel.evaluate(Re_M_Const_40000, Ro, sigma)
+    Tu_Re_M_Const_40000_Poly, L_ux_Re_M_Const_40000_Poly = polyModel.evaluate(Re_M_Const_40000, Ro, sigma)
+    
+    Tu_Re_M_Const_50000_NN, L_ux_Re_M_Const_50000_NN = nnModel.evaluate(Re_M_Const_50000, Ro, sigma)
+    Tu_Re_M_Const_50000_Poly, L_ux_Re_M_Const_50000_Poly = polyModel.evaluate(Re_M_Const_50000, Ro, sigma)
+        
     # Turbulence intensity as percentage
     turb_data["Turbulence Intensity Percent"] = turb_data["Turbulence Intensity"]*100
+    turb_data["Turbulence Intensity Percent Uncertainty"] = turb_data["Turbulence Intensity Precision Uncertainty"]*100
     constant_re_10000 = (turb_data["Grid Re"] > 5000) & (turb_data["Grid Re"] < 15000)
     constant_re_20000 = (turb_data["Grid Re"] > 15000) & (turb_data["Grid Re"] < 25000)
     constant_re_30000 = (turb_data["Grid Re"] > 25000) & (turb_data["Grid Re"] < 35000)
     constant_re_40000 = (turb_data["Grid Re"] > 35000) & (turb_data["Grid Re"] < 45000)
     constant_re_50000 = (turb_data["Grid Re"] > 45000) & (turb_data["Grid Re"] < 55000)
 
-    constant_ro_25 = (turb_data["Rossby Number"] == 25)
-    turb_data_re_10000_ro_25 = turb_data[constant_re_10000 & constant_ro_25]
-    turb_data_re_20000_ro_25 = turb_data[constant_re_20000 & constant_ro_25]
-    turb_data_re_30000_ro_25 = turb_data[constant_re_30000 & constant_ro_25]
-    turb_data_re_40000_ro_25 = turb_data[constant_re_40000 & constant_ro_25]
-    turb_data_re_50000_ro_25 = turb_data[constant_re_50000 & constant_ro_25]
+    constant_ro_40 = (turb_data["Rossby Number"] == 30)
+    turb_data_re_10000_ro_40 = turb_data[constant_re_10000 & constant_ro_40]
+    turb_data_re_20000_ro_40 = turb_data[constant_re_20000 & constant_ro_40]
+    turb_data_re_30000_ro_40 = turb_data[constant_re_30000 & constant_ro_40]
+    turb_data_re_40000_ro_40 = turb_data[constant_re_40000 & constant_ro_40]
+    turb_data_re_50000_ro_40 = turb_data[constant_re_50000 & constant_ro_40]
     
     # Create figure with 2x2 layout
-    fig, axs = plt.subplots(4, 1, figsize=(5.8, 5.8*1.2))
+    fig, axs = plt.subplots(2, 1, figsize=(5.8, 4.8))
     axs = axs.flatten()
     
     # Subfigure labels
@@ -56,69 +96,91 @@ def shaftSpeedStdPlot(turb_data : pd.DataFrame):
         ax.text(0.02, 0.95, subfig_labels[i], transform=ax.transAxes, fontsize=10, va='top', ha='left', fontweight='bold')
 
     # Tu vs sigma_\Omega
-    turb_data_re_10000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Turbulence Intensity Percent", ax=axs[0], label=r'$\textrm{Re}_M=1\times10^4$', marker=present_marker, c="g", linewidths=0.5)
-    turb_data_re_20000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Turbulence Intensity Percent", ax=axs[0], label=r'$\textrm{Re}_M=2\times10^4$', marker=present_marker, c="b", linewidths=0.5)
-    turb_data_re_30000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Turbulence Intensity Percent", ax=axs[0], label=r'$\textrm{Re}_M=3\times10^4$', marker=present_marker, c="k", linewidths=0.5)
-    turb_data_re_40000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Turbulence Intensity Percent", ax=axs[0], label=r'$\textrm{Re}_M=4\times10^4$', marker=present_marker, c="r", linewidths=0.5)
-    turb_data_re_50000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Turbulence Intensity Percent", ax=axs[0], label=r'$\textrm{Re}_M=5\times10^4$', marker=present_marker, c="y", linewidths=0.5)
-    # axs[0].scatter(np.divide(hearst_ro['omega'], hearst_ro['Re_M'])*hearst_M**2/nu , hearst_ro['Tu'], c='r', marker=hearst_marker, label=r'Hearst \& Lavoie (2015)', linewidths=0.5)
-    # axs[0].scatter(np.divide(hearst_u['omega'], hearst_u['Re_M'])*hearst_M**2/nu, hearst_u['Tu'], c='r', marker=hearst_marker, label='_nolegend_', linewidths=0.5)
-    # axs[0].scatter(np.divide(larssen['omega'][4:], larssen['Re_M'][4:])*larssen_M**2/nu, larssen['Tu'][4:], c='b', marker=larssen_marker, label=r'Larssen \& Devenport. (2011)', linewidths=0.5)
-    # axs[0].scatter(np.divide(makita['omega'], makita['Re_M'])*makita_M**2/nu, makita['Tu'], c='g', marker=makita_marker, label='Makita (1991)', linewidths=1)
+    axs[0].errorbar(turb_data_re_10000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_10000_ro_40["Turbulence Intensity Percent"],
+                    label=r'$\textrm{Re}_M=1\times10^4$',
+                    yerr=turb_data_re_10000_ro_40["Turbulence Intensity Percent Uncertainty"],
+                    marker=present_marker, c=cmap(norm(10000)), linestyle='none',capsize=2)
+    axs[0].errorbar(turb_data_re_20000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_20000_ro_40["Turbulence Intensity Percent"],
+                    label=r'$\textrm{Re}_M=2\times10^4$',
+                    yerr=turb_data_re_20000_ro_40["Turbulence Intensity Percent Uncertainty"],
+                    marker=present_marker, c=cmap(norm(20000)), linestyle='none',capsize=2)
+    axs[0].errorbar(turb_data_re_30000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_30000_ro_40["Turbulence Intensity Percent"],
+                    label=r'$\textrm{Re}_M=3\times10^4$',
+                    yerr=turb_data_re_30000_ro_40["Turbulence Intensity Percent Uncertainty"],
+                    marker=present_marker, c=cmap(norm(30000)), linestyle='none',capsize=2)
+    axs[0].errorbar(turb_data_re_40000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_40000_ro_40["Turbulence Intensity Percent"],
+                    label=r'$\textrm{Re}_M=4\times10^4$',
+                    yerr=turb_data_re_40000_ro_40["Turbulence Intensity Percent Uncertainty"],
+                    marker=present_marker, c=cmap(norm(40000)), linestyle='none',capsize=2)
+    axs[0].errorbar(turb_data_re_50000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_50000_ro_40["Turbulence Intensity Percent"],
+                    label=r'$\textrm{Re}_M=5\times10^4$',
+                    yerr=turb_data_re_50000_ro_40["Turbulence Intensity Percent Uncertainty"],
+                    marker=present_marker, c=cmap(norm(50000)), linestyle='none',capsize=2)
+    
+    # Model
+    axs[0].plot(sigma,Tu_Re_M_Const_10000_NN*100, c=cmap(norm(10000)), lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_20000_NN*100, c=cmap(norm(20000)), lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_30000_NN*100, c=cmap(norm(30000)), lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_40000_NN*100, c=cmap(norm(40000)), lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_50000_NN*100, c=cmap(norm(50000)), lw = 1)
+    
+    axs[0].plot(sigma,Tu_Re_M_Const_10000_Poly*100, c=cmap(norm(10000)), linestyle='--', lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_20000_Poly*100, c=cmap(norm(20000)), linestyle='--', lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_30000_Poly*100, c=cmap(norm(30000)), linestyle='--', lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_40000_Poly*100, c=cmap(norm(40000)), linestyle='--', lw = 1)
+    axs[0].plot(sigma,Tu_Re_M_Const_50000_Poly*100, c=cmap(norm(50000)), linestyle='--', lw = 1)
+    
     axs[0].set_xlabel(r"")
     axs[0].set_ylabel(r'$Tu$')
-    axs[0].get_legend().remove();
     legend = fig.legend(loc='outside upper center', ncols=2)
     legend.get_frame().set_edgecolor('black')
     
     # L_ux vs sigma_\Omega
-    turb_data_re_10000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="L_ux / M", ax=axs[1], label=r'_nolegend_', marker=present_marker, c="g", linewidths=0.5)
-    turb_data_re_20000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="L_ux / M", ax=axs[1], label=r'_nolegend_', marker=present_marker, c="b", linewidths=0.5)
-    turb_data_re_30000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="L_ux / M", ax=axs[1], label=r'_nolegend_', marker=present_marker, c="k", linewidths=0.5)
-    turb_data_re_40000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="L_ux / M", ax=axs[1], label=r'_nolegend_', marker=present_marker, c="r", linewidths=0.5)
-    turb_data_re_50000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="L_ux / M", ax=axs[1], label=r'_nolegend_', marker=present_marker, c="y", linewidths=0.5)
-    # axs[1].scatter(np.divide(hearst_ro['omega'], hearst_ro['Re_M'])*hearst_M**2/nu , hearst_ro['L_ux'], c='r', marker=hearst_marker, label=r'Hearst \& Lavoie (2015)', linewidths=0.5)
-    # axs[1].scatter(np.divide(hearst_u['omega'], hearst_u['Re_M'])*hearst_M**2/nu, hearst_u['L_ux'], c='r', marker=hearst_marker, label='_nolegend_', linewidths=0.5)
-    # axs[1].scatter(np.divide(larssen['omega'][4:], larssen['Re_M'][4:])*larssen_M**2/nu, larssen['L_ux'][4:], c='b', marker=larssen_marker, label=r'Larssen \& Devenport. (2011)', linewidths=0.5)
-    # axs[1].scatter(np.divide(makita['omega'], makita['Re_M'])*makita_M**2/nu, makita['L_ux'], c='g', marker=makita_marker, label='Makita (1991)', linewidths=1)
+    axs[1].errorbar(turb_data_re_10000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_10000_ro_40["L_ux / M"],
+                    label=r'$\textrm{Re}_M=1\times10^4$',
+                    yerr=turb_data_re_10000_ro_40["L_ux Uncertainty"],
+                    marker=present_marker, c=cmap(norm(10000)), linestyle='none',capsize=2)
+    axs[1].errorbar(turb_data_re_20000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_20000_ro_40["L_ux / M"],
+                    label=r'$\textrm{Re}_M=2\times10^4$',
+                    yerr=turb_data_re_20000_ro_40["L_ux Uncertainty"],
+                    marker=present_marker, c=cmap(norm(20000)), linestyle='none',capsize=2)
+    axs[1].errorbar(turb_data_re_30000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_30000_ro_40["L_ux / M"],
+                    label=r'$\textrm{Re}_M=3\times10^4$',
+                    yerr=turb_data_re_30000_ro_40["L_ux Uncertainty"],
+                    marker=present_marker, c=cmap(norm(30000)), linestyle='none',capsize=2)
+    axs[1].errorbar(turb_data_re_40000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_40000_ro_40["L_ux / M"],
+                    label=r'$\textrm{Re}_M=4\times10^4$',
+                    yerr=turb_data_re_40000_ro_40["L_ux Uncertainty"],
+                    marker=present_marker, c=cmap(norm(40000)), linestyle='none',capsize=2)
+    axs[1].errorbar(turb_data_re_50000_ro_40["Shaft Speed Standard Deviation * M^2 / nu"],turb_data_re_50000_ro_40["L_ux / M"],
+                    label=r'$\textrm{Re}_M=5\times10^4$',
+                    yerr=turb_data_re_50000_ro_40["L_ux Uncertainty"],
+                    marker=present_marker, c=cmap(norm(50000)), linestyle='none',capsize=2)    
     axs[1].set_ylabel(r'$L_{ux}/M$')
-    axs[1].set_xlabel(r"")
+    axs[1].set_xlabel(r"$\sigma_\Omega M^2/\nu$")
     
-    # u'/v' vs sigma_\Omega
-    turb_data_re_10000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Anisotropy", ax=axs[2], label=r'_nolegend_', marker=present_marker, c="g", linewidths=0.5)
-    turb_data_re_20000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Anisotropy", ax=axs[2], label=r'_nolegend_', marker=present_marker, c="b", linewidths=0.5)
-    turb_data_re_30000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Anisotropy", ax=axs[2], label=r'_nolegend_', marker=present_marker, c="k", linewidths=0.5)
-    turb_data_re_40000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Anisotropy", ax=axs[2], label=r'_nolegend_', marker=present_marker, c="r", linewidths=0.5)
-    turb_data_re_50000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Anisotropy", ax=axs[2], label=r'_nolegend_', marker=present_marker, c="y", linewidths=0.5)
-    # axs[2].scatter(np.divide(hearst_ro['omega'], hearst_ro['Re_M'])*hearst_M**2/nu , hearst_ro['u_v'], c='r', marker=hearst_marker, label=r'Hearst \& Lavoie (2015)', linewidths=0.5)
-    # axs[2].scatter(np.divide(hearst_u['omega'], hearst_u['Re_M'])*hearst_M**2/nu, hearst_u['u_v'], c='r', marker=hearst_marker, label='_nolegend_', linewidths=0.5)
-    # axs[2].scatter(np.divide(larssen['omega'][4:], larssen['Re_M'][4:])*larssen_M**2/nu, larssen['u_v'][4:], c='b', marker=larssen_marker, label=r'Larssen \& Devenport. (2011)', linewidths=0.5)
-    # axs[2].scatter(np.divide(makita['omega'], makita['Re_M'])*makita_M**2/nu, makita['u_v'], c='g', marker=makita_marker, label='Makita (1991)', linewidths=1)
-    axs[2].set_ylabel(r"$\sqrt{\overline{u'^2}/\overline{v'^2}}$")
-    axs[2].set_xlabel(r"")
+    # Model
+    axs[1].plot(sigma, L_ux_Re_M_Const_10000_NN, c=cmap(norm(10000)), lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_20000_NN, c=cmap(norm(20000)), lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_30000_NN, c=cmap(norm(30000)), lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_40000_NN, c=cmap(norm(40000)), lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_50000_NN, c=cmap(norm(50000)), lw = 1)
     
-    # Re_lambda vs Ro
-    turb_data_re_10000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Re_lambda", ax=axs[3], label=r'_nolegend_', marker=present_marker, c="g", linewidths=0.5)
-    turb_data_re_20000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Re_lambda", ax=axs[3], label=r'_nolegend_', marker=present_marker, c="b", linewidths=0.5)
-    turb_data_re_30000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Re_lambda", ax=axs[3], label=r'_nolegend_', marker=present_marker, c="k", linewidths=0.5)
-    turb_data_re_40000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Re_lambda", ax=axs[3], label=r'_nolegend_', marker=present_marker, c="r", linewidths=0.5)
-    turb_data_re_50000_ro_25.plot(kind="scatter", x="Shaft Speed Standard Deviation * M^2 / nu", y="Re_lambda", ax=axs[3], label=r'_nolegend_', marker=present_marker, c="y", linewidths=0.5)
-    # axs[3].scatter(np.divide(hearst_ro['omega'], hearst_ro['Re_M'])*hearst_M**2/nu, hearst_ro["Re_lambda"] , c='r', marker=hearst_marker, label=r'Hearst \& Lavoie (2015)', linewidths=0.5)
-    # axs[3].scatter(np.divide(hearst_u['omega'], hearst_u['Re_M'])*hearst_M**2/nu, hearst_u["Re_lambda"], c='r', marker=hearst_marker, label='_nolegend_', linewidths=0.5)
-    # axs[3].scatter(np.divide(larssen['omega'][4:], larssen['Re_M'][4:])*larssen_M**2/nu, larssen["Re_lambda"][4:], c='b', marker=larssen_marker, label=r'Larssen \& Devenport. (2011)', linewidths=0.5)
-    # axs[3].scatter(np.divide(makita['omega'], makita['Re_M'])*makita_M**2/nu, makita['Re_lambda'], c='g', marker=makita_marker, label='Makita (1991)', linewidths=1)
-    axs[3].set_ylabel(r"$\textrm{Re}_\lambda$")
-    axs[3].set_xlabel(r"$\sigma_\Omega M^2/\nu$")
+    axs[1].plot(sigma, L_ux_Re_M_Const_10000_Poly, c=cmap(norm(10000)), linestyle='--', lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_20000_Poly, c=cmap(norm(20000)), linestyle='--', lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_30000_Poly, c=cmap(norm(30000)), linestyle='--', lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_40000_Poly, c=cmap(norm(40000)), linestyle='--', lw = 1)
+    axs[1].plot(sigma, L_ux_Re_M_Const_50000_Poly, c=cmap(norm(50000)), linestyle='--', lw = 1)
     
     # X-Axis Limits
     # for x in [0,1,2,3]:
     #     axs[x].set_xlim(left=0, right=300000)
     
     # Adjust layout
-    plt.subplots_adjust(hspace=0.2,left=0.12,right=0.96,wspace=0.18,bottom=0.06,top=0.91)
+    plt.subplots_adjust(hspace=0.2,left=0.12,right=0.96,wspace=0.18,bottom=0.1,top=0.83)
     
     # Set Y-Axis Limits
-    axs[0].set_ylim(bottom=4, top=20)
+    axs[0].set_ylim([8.5,15.5])
     
     plt.show()
     return fig
